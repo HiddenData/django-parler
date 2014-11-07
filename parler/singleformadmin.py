@@ -161,18 +161,23 @@ class TranslatableModelFormMixin(ModelForm):
 
         # Load the initial values for the translated fields
         instance = kwargs.get('instance', None)
-        if instance:
-            for meta in instance._parler_meta:
-                for field in meta.get_translated_fields():
-                    for code, code_field in _get_translated_fields_names(field):
-                        try:
-                            translation = instance._get_translated_model(
-                                meta=meta, language_code=code)
-                        except TranslationDoesNotExist:
-                            continue
+        if not instance:
+            return
 
-                        self.initial.setdefault(
-                            code_field, getattr(translation, field))
+        # for each translation meta
+        for meta in instance._parler_meta:
+            # for each translated field
+            for field in meta.get_translated_fields():
+                # for each language for that field
+                for code, code_field in _get_translated_fields_names(field):
+                    try:
+                        translation = instance._get_translated_model(
+                            meta=meta, language_code=code)
+                    except TranslationDoesNotExist:
+                        continue
+
+                    self.initial.setdefault(
+                        code_field, getattr(translation, field))
 
     def _post_clean(self):
         self.save_translated_fields()
@@ -197,8 +202,9 @@ class TranslatableModelFormMixin(ModelForm):
 
                 setattr(self.instance, field, value)
 
-        # Go back to original language
+        # Switch instance back to original language
         self.instance.set_current_language(get_language())
+
 
 class TranslatableModelForm(
         compat.with_metaclass(TranslatableModelFormMetaclass,

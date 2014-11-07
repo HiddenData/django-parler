@@ -10,9 +10,14 @@ It's also useful for abstract models; add a :class:`TranslatedField` to
 indicate that the derived model is expected to provide that translatable field.
 """
 from __future__ import unicode_literals
+import logging
+
+from parler import appsettings
 from django.core.exceptions import FieldError
 from django.db.models.fields import Field
 from django.forms.forms import pretty_name
+
+log = logging.getLogger(__name__)
 
 
 # TODO: inherit RelatedField?
@@ -82,6 +87,9 @@ class TranslatedFieldDescriptor(object):
             # Return the class attribute when asked for by the admin.
             return self
 
+        if appsettings.PARLER_PER_VALUE_FALLBACK:
+            return self._get_with_per_value_fallback(instance, instance_type)
+
         # Auto create is useless for __get__, will return empty titles everywhere.
         # Better use a fallback instead, just like gettext does.
         translation = None
@@ -98,6 +106,54 @@ class TranslatedFieldDescriptor(object):
                 raise
 
         return getattr(translation, self.field.name)
+
+    def _get_with_per_value_fallback(self, instance, instance_type):
+        """
+        Return first translation in fallback chain that defines non blank
+        value
+        """
+
+        translation = None
+        meta = self.field.meta
+        language = instance.get_current_language()
+        # track visited languages to avoid infinite loops
+        visited = [language]
+
+        while True:
+            try:
+                translation = instance._get_translated_model(
+                    language_code=language, use_fallback=True, meta=meta)
+            except meta.model.DoesNotExist as e:
+                if self.field.any_language:
+                    translation = instance._get_any_translated_model(meta=meta)
+
+                if translation is None:
+                    # Improve error message
+                    e.args = ("{1}\nAttempted to read attribute {0}.".format(self.field.name, e.args[0]),)
+                    raise
+
+            value = getattr(translation, self.field.name)
+            if value:
+                return value
+
+            # get fallback
+            lang_data = appsettings.PARLER_LANGUAGES.get_language(language)
+            if lang_data.get('fallback'):
+                language = lang_data['fallback']
+                if language in visited:
+                    log.warning(
+                        "Fallback loop without defined translation for "
+                        "field %s and language %s",
+                        self, language)
+                    return u''
+
+                visited.append(language)
+
+            else:
+                log.warning(
+                    "No translation defined for field %s and language %s",
+                    self, language)
+                return u''
 
     def __set__(self, instance, value):
         if instance is None:

@@ -13,6 +13,7 @@ PARLER_SHOW_EXCLUDED_LANGUAGE_TABS = getattr(settings, 'PARLER_SHOW_EXCLUDED_LAN
 PARLER_LANGUAGES = getattr(settings, 'PARLER_LANGUAGES', {})
 
 PARLER_ENABLE_CACHING = getattr(settings, 'PARLER_ENABLE_CACHING', True)
+PARLER_PER_VALUE_FALLBACK = getattr(settings, 'PARLER_PER_VALUE_FALLBACK', False)
 
 # Have to fill the default section explicitly to avoid circular imports
 PARLER_LANGUAGES.setdefault('default', {})

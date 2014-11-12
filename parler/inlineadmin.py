@@ -45,6 +45,10 @@ def _get_default_language():
 
 def _handle_translation_model(bases, attrs, translations_model, form_new_meta,
                               form_meta, form_base_fields, translated_fields):
+    """
+    Add translation fields for each language to form
+    """
+
     fields = getattr(form_new_meta, 'fields', form_meta.fields)
     exclude = \
         getattr(form_new_meta, 'exclude', form_meta.exclude) or ()
@@ -90,6 +94,7 @@ def _handle_translation_model(bases, attrs, translations_model, form_new_meta,
                 continue
 
             translated_fields_names = _get_translated_fields_names(f_name)
+            # replace original field name with translated fields names
             if fields is not None:
                 replacement = zip(*translated_fields_names)[1]
                 form_new_meta.fields = _replace_field(
@@ -106,8 +111,6 @@ def _handle_translation_model(bases, attrs, translations_model, form_new_meta,
 
 
 class TranslatableModelFormMetaclass(ModelFormMetaclass):
-    # translate field -> translated fields
-
     def __new__(mcs, name, bases, attrs):
         create_cls = lambda: \
             super(TranslatableModelFormMetaclass, mcs).__new__(
@@ -149,6 +152,10 @@ class TranslatableModelFormMetaclass(ModelFormMetaclass):
 
 
 class TranslatableModelFormMixin(ModelForm):
+    """
+    Handles multipile translations for fields in single form
+    """
+
     def __init__(self, *args, **kwargs):
         super(TranslatableModelFormMixin, self).__init__(*args, **kwargs)
 
@@ -173,9 +180,6 @@ class TranslatableModelFormMixin(ModelForm):
                         code_field, getattr(translation, field))
 
     def _post_clean(self):
-        # Copy the translated fields into the model
-        # Make sure the language code is set as early as possible (so it's
-        # active during most clean() methods)
         self.save_translated_fields()
 
         # Perform the regular clean checks, this also updates self.instance

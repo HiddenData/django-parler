@@ -107,6 +107,7 @@ def _handle_translation_model(bases, attrs, translations_model, form_new_meta,
                     formfield_callback=formfield_callback, **kwargs)
                 formfield.required = code == _get_default_language()
                 formfield.label += ' ({})'.format(code)
+                formfield.language_code = code
                 attrs[t_name] = formfield
 
 

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from django.utils.translation import ugettext as _
+from django.forms.models import modelform_factory
 
 from parler import appsettings
 from parler.forms import _get_model_form_field, _get_mro_attribute, \
@@ -231,8 +232,15 @@ class TranslatableAdmin(ModelAdmin):
                 names = [f[1] for f in _get_translated_fields_names(f_name)]
                 fields = _replace_field(fields, f_name, names)
 
+        form = cls.form
+        if form is TranslatableModelForm:
+            # TranslatableAdmin validation will not pass without form created
+            # for specific model
+            form = modelform_factory(model, form)
+
         attrs = {
             'fields': fields,
+            'form': form,
         }
         return type(cls.__name__ + model.__name__ + 'Trans',
                     (cls, ), attrs)

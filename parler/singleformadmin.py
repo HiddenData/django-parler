@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from django.utils.translation import ugettext as _
-from django.forms.models import modelform_factory
+import functools
 
 from parler import appsettings
 from parler.forms import _get_model_form_field, _get_mro_attribute, \
@@ -12,8 +11,8 @@ from parler.utils import compat
 from django.conf import settings
 from django.contrib.admin.options import ModelAdmin
 from django.forms import ModelForm
-from django.forms.models import ModelFormMetaclass
-from django.utils.translation import get_language
+from django.forms.models import ModelFormMetaclass, modelform_factory
+from django.utils.translation import get_language, ugettext as _
 
 
 def _replace_field(fields, name, replacement):
@@ -106,7 +105,8 @@ def _handle_translation_model(bases, attrs, translations_model, form_new_meta,
                 formfield = _get_model_form_field(
                     translations_model, f_name,
                     formfield_callback=formfield_callback, **kwargs)
-                formfield.required = code == _get_default_language()
+                formfield.required = (code == _get_default_language()) and \
+                    formfield.required
                 formfield.label += ' ({})'.format(code)
                 formfield.language_code = code
                 attrs[t_name] = formfield
@@ -163,23 +163,27 @@ class TranslatableModelFormMixin(ModelForm):
 
         # Load the initial values for the translated fields
         instance = kwargs.get('instance', None)
-        if not instance:
-            return
+
+        self.translated = {}
 
         # for each translation meta
-        for meta in instance._parler_meta:
+        for meta in self._meta.model._parler_meta:
             # for each translated field
             for field in meta.get_translated_fields():
+                self.translated[field] = []
                 # for each language for that field
                 for code, code_field in _get_translated_fields_names(field):
-                    try:
-                        translation = instance._get_translated_model(
-                            meta=meta, language_code=code)
-                    except TranslationDoesNotExist:
-                        continue
+                    if instance:
+                        try:
+                            translation = instance._get_translated_model(
+                                meta=meta, language_code=code)
+                        except TranslationDoesNotExist:
+                            continue
 
-                    self.initial.setdefault(
-                        code_field, getattr(translation, field))
+                        self.initial.setdefault(
+                            code_field, getattr(translation, field))
+
+                    self.translated[field].append(self[code_field])
 
     def _post_clean(self):
         self.save_translated_fields()
@@ -242,6 +246,21 @@ class TranslatableAdmin(ModelAdmin):
             'fields': fields,
             'form': form,
         }
+
+        # Generate properties for translated list display fields if they are
+        # not defined as they are required
+        for field in cls.list_display:
+            if field in model._parler_meta.get_translated_fields() and \
+                    not hasattr(cls, field):
+                attrs[field] = \
+                    functools.partial(
+                        lambda obj, field: getattr(obj, field),
+                        field=field)
+
+                attrs[field].admin_order_field = \
+                    'translations__{}'.format(field)
+                attrs[field].short_description = _(field)
+
         return type(cls.__name__ + model.__name__ + 'Trans',
                     (cls, ), attrs)
 

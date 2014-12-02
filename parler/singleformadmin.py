@@ -173,6 +173,7 @@ class TranslatableModelFormMixin(ModelForm):
                 self.translated[field] = []
                 # for each language for that field
                 for code, code_field in _get_translated_fields_names(field):
+                    self.translated[field].append(self[code_field])
                     if instance:
                         try:
                             translation = instance._get_translated_model(
@@ -182,8 +183,6 @@ class TranslatableModelFormMixin(ModelForm):
 
                         self.initial.setdefault(
                             code_field, getattr(translation, field))
-
-                    self.translated[field].append(self[code_field])
 
     def _post_clean(self):
         self.save_translated_fields()

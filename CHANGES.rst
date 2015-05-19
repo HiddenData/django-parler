@@ -1,10 +1,30 @@
 Changelog
 =========
 
-Changes in development (git version)
-------------------------------------
+Changes in version 1.4 (2015-04-13)
+-----------------------------------
 
+* Added Django 1.8 support
+* Fix caching when using redis-cache
+* Fix handling ``update_fields`` in ``save()`` (needed for combining parler with django-mptt_ 0.7)
+* Fix unwanted migration changes in Django 1.6/South for the internal ``HideChoicesCharField``.
+* Fix overriding get_current_language() / get_form_language() in the ``TranslatableModelFormMixin``/``TranslatableCreateView``/``TranslatableUpdateView``.
+
+
+Changes in version 1.3 (2015-03-13)
+-----------------------------------
+
+* Added support for ``MyModel.objects.language(..).create(..)``.
 * Detect when translatable fields are assigned too early.
+* Fix adding ``choices=LANGUAGES`` to all Django 1.7 migrations.
+* Fix missing 404 check in delete-translation view.
+* Fix caching for models that have a string value as primary key.
+* Fix support for a primary-key value of ``0``.
+* Fix ``get_form_class()`` override check for ``TranslatableModelFormMixin`` for Python 3.
+* Fix calling manager methods on related objects in Django 1.4/1.5.
+* Improve ``{% get_translated_url %}``, using ``request.resolver_match`` value.
+* Fix preserving query-string in ``{% get_translated_url %}``, unless an object is explicitly passed.
+* Fix supporting removed model fields in ``get_cached_translation()``.
 
 
 Changes in version 1.2.1 (2014-10-31)
@@ -154,3 +174,5 @@ Changes in version 0.9 (beta)
 
 .. _django-fluent-pages: https://github.com/edoburu/django-fluent-pages
 .. _django-hvad: https://github.com/kristianoellegaard/django-hvad
+.. _django-mptt: https://github.com/django-mptt/django-mptt
+.. _django-rest-framework: https://github.com/tomchristie/django-rest-framework

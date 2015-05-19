@@ -14,10 +14,8 @@ if six.PY3:
     long = int
 
 try:
-    # In Django 1.6, a timeout of 0 seconds is accepted as valid input,
-    # and a sentinel value is used to denote the default timeout. Use that.
-    from django.core.cache.backends.base import DEFAULT_TIMEOUT
-except ImportError:
+    DEFAULT_TIMEOUT = cache.cache.default_timeout
+except AttributeError:
     DEFAULT_TIMEOUT = 0
 
 
@@ -37,7 +35,7 @@ def get_object_cache_keys(instance):
     """
     Return the cache keys associated with an object.
     """
-    if not instance.pk or instance._state.adding:
+    if instance.pk is None or instance._state.adding:
         return []
 
     keys = []
@@ -57,7 +55,7 @@ def get_translation_cache_key(translated_model, master_id, language_code):
     """
     # Always cache the entire object, as this already produces
     # a lot of queries. Don't go for caching individual fields.
-    return 'parler.{0}.{1}.{2}.{3}'.format(translated_model._meta.app_label, translated_model.__name__, long(master_id), language_code)
+    return 'parler.{0}.{1}.{2}.{3}'.format(translated_model._meta.app_label, translated_model.__name__, master_id, language_code)
 
 
 def get_cached_translation(instance, language_code=None, related_name=None, use_fallback=False):
@@ -74,7 +72,12 @@ def get_cached_translation(instance, language_code=None, related_name=None, use_
     if not values:
         return None
 
-    translation = translated_model(**values)
+    try:
+        translation = translated_model(**values)
+    except TypeError:
+        # Some model field was removed, cache entry is no longer working.
+        return None
+
     translation._state.adding = False
     return translation
 

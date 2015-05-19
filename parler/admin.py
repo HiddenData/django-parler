@@ -235,11 +235,13 @@ class TranslatableAdmin(BaseTranslatableAdmin, admin.ModelAdmin):
             return self.model._parler_meta.root_model.objects.none()
 
 
-    def get_object(self, request, object_id):
+    def get_object(self, request, object_id, *args, **kwargs):
         """
         Make sure the object is fetched in the correct language.
         """
-        obj = super(TranslatableAdmin, self).get_object(request, object_id)
+        # The args/kwargs are to support Django 1.8, which adds a from_field parameter
+        obj = super(TranslatableAdmin, self).get_object(request, object_id, *args, **kwargs)
+
         if obj is not None and self._has_translatable_model():  # Allow fallback to regular models.
             obj.set_current_language(self._language(request, obj), initialize=True)
 
@@ -351,6 +353,9 @@ class TranslatableAdmin(BaseTranslatableAdmin, admin.ModelAdmin):
 
         # Get object and translation
         shared_obj = self.get_object(request, unquote(object_id))
+        if shared_obj is None:
+            raise Http404
+
         shared_obj.set_current_language(language_code)
         try:
             translation = root_model.objects.get(master=shared_obj, language_code=language_code)
@@ -383,7 +388,12 @@ class TranslatableAdmin(BaseTranslatableAdmin, admin.ModelAdmin):
             else:
                 qs_opts = qs.model._meta
 
-            (del2, perms2, protected2) = get_deleted_objects(qs, qs_opts, request.user, self.admin_site, using)
+            deleted_result = get_deleted_objects(qs, qs_opts, request.user, self.admin_site, using)
+            if django.VERSION >= (1,8):
+                (del2, model_counts, perms2, protected2) = deleted_result
+            else:
+                (del2, perms2, protected2) = deleted_result
+
             deleted_objects += del2
             perms_needed = perms_needed or perms2
             protected += protected2

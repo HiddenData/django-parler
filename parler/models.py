@@ -134,9 +134,11 @@ def create_translations_model(shared_model, related_name, meta, **fields):
         raise TypeError("Can't create TranslatedFieldsModel for abstract class {0}".format(shared_model.__name__))
 
     # Define inner Meta class
-    meta['unique_together'] = list(meta.get('unique_together', [])) + [('language_code', 'master')]
     meta['app_label'] = shared_model._meta.app_label
-    meta.setdefault('db_table', shared_model._meta.db_table + '_translation')
+    meta['db_tablespace'] = shared_model._meta.db_tablespace
+    meta['managed'] = shared_model._meta.managed
+    meta['unique_together'] = list(meta.get('unique_together', [])) + [('language_code', 'master')]
+    meta.setdefault('db_table', '{0}_translation'.format(shared_model._meta.db_table))
     meta.setdefault('verbose_name', _lazy_verbose_name(shared_model))
 
     # Avoid creating permissions for the translated model, these are not used at all.
@@ -183,6 +185,15 @@ class TranslatedFields(object):
             translations = TranslatedFields(
                 title = models.CharField("Title", max_length=200)
             )
+
+    When the class is initialized, the attribute will point
+    to a :class:`~django.db.models.fields.related.ForeignRelatedObjectsDescriptor` object.
+    Hence, accessing ``MyModel.translations.related.model`` returns the original model
+    via the :class:`django.db.models.related.RelatedObject` class.
+
+    ..
+       To fetch the attribute, you can also query the Parler metadata:
+       MyModel._parler_meta.get_model_by_related_name('translations')
     """
     def __init__(self, meta=None, **fields):
         self.fields = fields
@@ -391,7 +402,7 @@ class TranslatableModel(models.Model):
         except KeyError:
             # 2. No cache, need to query
             # Check that this object already exists, would be pointless otherwise to check for a translation.
-            if not self._state.adding and self.pk:
+            if not self._state.adding and self.pk is not None:
                 prefetch = self._get_prefetched_translations(meta=meta)
                 if prefetch is not None:
                     # 2.1, use prefetched data
@@ -432,10 +443,14 @@ class TranslatableModel(models.Model):
         # 3. Auto create?
         if auto_create:
             # Auto create policy first (e.g. a __set__ call)
-            object = meta.model(
-                language_code=language_code,
-                master=self  # ID might be None at this point
-            )
+            kwargs = {
+                'language_code': language_code,
+            }
+            if self.pk:
+                # ID might be None at this point, and Django 1.8 does not allow that.
+                kwargs['master'] = self
+
+            object = meta.model(**kwargs)
             local_cache[language_code] = object
             # Not stored in memcached here yet, first fill + save it.
             return object
@@ -448,7 +463,7 @@ class TranslatableModel(models.Model):
             # Explicitly set a marker for the fact that this translation uses the fallback instead.
             # Avoid making that query again.
             local_cache[language_code] = MISSING  # None value is the marker.
-            if not self._state.adding or self.pk:
+            if not self._state.adding or self.pk is not None:
                 _cache_translation_needs_fallback(self, language_code, related_name=meta.rel_name)
 
         if lang_dict['fallback'] != language_code and use_fallback:
@@ -537,6 +552,11 @@ class TranslatableModel(models.Model):
 
     def save(self, *args, **kwargs):
         super(TranslatableModel, self).save(*args, **kwargs)
+
+        # Makes no sense to add these for translated model
+        # Even worse: mptt 0.7 injects this parameter when it avoids updating the lft/rgt fields,
+        # but that misses all the translated fields.
+        kwargs.pop('update_fields', None)
         self.save_translations(*args, **kwargs)
 
 
@@ -610,7 +630,7 @@ class TranslatableModel(models.Model):
         :param args: Any custom arguments to pass to :func:`save`.
         :param kwargs: Any custom arguments to pass to :func:`save`.
         """
-        if not self.pk or self._state.adding:
+        if self.pk is None or self._state.adding:
             raise RuntimeError("Can't save translations when the master object is not yet saved.")
 
         # Translation models without any fields are also supported.
@@ -639,7 +659,7 @@ class TranslatableModel(models.Model):
         # Extra feature: query a single field from a other translation.
         if language_code and language_code != self._current_language:
             try:
-                tr_model = self._get_translated_model(language_code, meta=meta)
+                tr_model = self._get_translated_model(language_code, meta=meta, use_fallback=True)
                 return getattr(tr_model, field)
             except TranslationDoesNotExist:
                 pass
@@ -727,7 +747,7 @@ class TranslatedFieldsModel(compat.with_metaclass(TranslatedFieldsModelBase, mod
     """
     Base class for the model that holds the translated fields.
     """
-    language_code = models.CharField(_("Language"), choices=settings.LANGUAGES, max_length=15, db_index=True)
+    language_code = compat.HideChoicesCharField(_("Language"), choices=settings.LANGUAGES, max_length=15, db_index=True)
 
     #: The mandatory Foreign key field to the shared model.
     master = None   # FK to shared model.
@@ -808,14 +828,19 @@ class TranslatedFieldsModel(compat.with_metaclass(TranslatedFieldsModelBase, mod
         if not self._meta.auto_created:
             signals.post_translation_delete.send(sender=self.shared_model, instance=self, using=using)
 
-    def _get_field_values(self):
-        # Return all field values in a consistent (sorted) manner.
-        return [getattr(self, field.get_attname()) for field, _ in self._meta.get_fields_with_model()]
+    if django.VERSION >= (1,8):
+        def _get_field_values(self):
+            # Use the new Model._meta API.
+            return [getattr(self, field.get_attname()) for field in self._meta.get_fields()]
+    else:
+        def _get_field_values(self):
+            # Return all field values in a consistent (sorted) manner.
+            return [getattr(self, field.get_attname()) for field, _ in self._meta.get_fields_with_model()]
+
 
     @classmethod
     def get_translated_fields(cls):
-        # Not using get `get_all_field_names()` because that also invokes a model scan.
-        return [f.name for f, _ in cls._meta.get_fields_with_model() if f.name not in ('language_code', 'master', 'id')]
+        return [f.name for f in cls._meta.local_fields if f.name not in ('language_code', 'master', 'id')]
 
     @classmethod
     def contribute_translations(cls, shared_model):
@@ -896,6 +921,7 @@ class ParlerMeta(object):
         """
         Return the translated fields of this model.
         """
+        # TODO: should be named get_fields() ?
         # root_model always points to the real model for extensions
         return self.model.get_translated_fields()
 
@@ -956,9 +982,11 @@ class ParlerOptions(object):
             self._fields_to_model[name] = translations_model
 
     def __repr__(self):
-        return "<ParlerOptions: *.{0} to {1}{2}>".format(
-            self.root_rel_name,
-            self.root_model.__name__,
+        root = self.root
+        return "<ParlerOptions: {0}.{1} to {2}{3}>".format(
+            root.shared_model.__name__,
+            root.rel_name,
+            root.model.__name__,
             '' if len(self._extensions) == 1 else ", {0} extensions".format(len(self._extensions))
         )
 
@@ -1001,7 +1029,7 @@ class ParlerOptions(object):
 
     def get_all_fields(self):
         """
-        Return all related fields associated with this model.
+        Return all translated fields associated with this model.
         """
         return list(self._fields_to_model.keys())
 
@@ -1014,11 +1042,16 @@ class ParlerOptions(object):
     def get_translated_fields(self, related_name=None):
         """
         Return the translated fields of this model.
+        By default, the top-level translation is required, unless ``related_name`` is provided.
         """
+        # TODO: should be named get_fields() ?
         meta = self._get_extension_by_related_name(related_name)
         return meta.get_translated_fields()
 
     def get_model_by_field(self, name):
+        """
+        Find the :class:`TranslatedFieldsModel` that contains the given field.
+        """
         try:
             return self._fields_to_model[name]
         except KeyError:
@@ -1060,7 +1093,7 @@ class ParlerOptions(object):
                 return meta
 
         raise ValueError("No translated model of '{0}' has a reverse name of '{1}'".format(
-            self.model.__name__, related_name
+            self.root.shared_model.__name__, related_name
         ))
 
     def _split_fields(self, **fields):

@@ -1,10 +1,56 @@
 Changelog
 =========
 
-Changes in development (git version)
-------------------------------------
+Changes in git
+--------------
 
+* Fix handling for non-nullable ``ForeignKey`` in forms and admin.
+* Fix performance of the admin list when ``all_languages_column`` or ``language_column`` is added to ``list_display`` (N-query issue).
+* Fix support for other packages that replace the BoundField class in ``Form.__get_item__`` (namely django-slug-preview_).
+
+
+Changes in version 1.5 (2015-06-30)
+-----------------------------------
+
+* Added support for multiple fallback languages!
+* Added ``translatable-field`` CSS class to the ``<label>`` tags of translatable fields.
+* Added ``{{ field.is_translatable }}`` variable.
+* Added warning when saving a model without language code set.
+  As of Django 1.8, ``get_language()`` returns ``None`` if no language is activated.
+* Allow ``safe_translation_getter(default=..)`` to be a callable.
+* Added ``all_languages_column``, inspired by aldryn-translation-tools_.
+* Changed styling of ``language_column``, the items are now links to the language tabs.
+* Fix caching support, the default timeout was wrongly imported.
+* Fix Django 1.4 support for using ``request.resolver_match``.
+* Fix admin delete translation view when using ``prefetch_related('translations')`` by default in the managers ``get_queryset()`` method.
+* Fix using prefetched translations in ``has_translation()`` too.
+* Return to change view after deleting a translation.
+
+
+Changes in version 1.4 (2015-04-13)
+-----------------------------------
+
+* Added Django 1.8 support
+* Fix caching when using redis-cache
+* Fix handling ``update_fields`` in ``save()`` (needed for combining parler with django-mptt_ 0.7)
+* Fix unwanted migration changes in Django 1.6/South for the internal ``HideChoicesCharField``.
+* Fix overriding get_current_language() / get_form_language() in the ``TranslatableModelFormMixin``/``TranslatableCreateView``/``TranslatableUpdateView``.
+
+
+Changes in version 1.3 (2015-03-13)
+-----------------------------------
+
+* Added support for ``MyModel.objects.language(..).create(..)``.
 * Detect when translatable fields are assigned too early.
+* Fix adding ``choices=LANGUAGES`` to all Django 1.7 migrations.
+* Fix missing 404 check in delete-translation view.
+* Fix caching for models that have a string value as primary key.
+* Fix support for a primary-key value of ``0``.
+* Fix ``get_form_class()`` override check for ``TranslatableModelFormMixin`` for Python 3.
+* Fix calling manager methods on related objects in Django 1.4/1.5.
+* Improve ``{% get_translated_url %}``, using ``request.resolver_match`` value.
+* Fix preserving query-string in ``{% get_translated_url %}``, unless an object is explicitly passed.
+* Fix supporting removed model fields in ``get_cached_translation()``.
 
 
 Changes in version 1.2.1 (2014-10-31)
@@ -16,7 +62,7 @@ Changes in version 1.2.1 (2014-10-31)
 Changes in version 1.2 (2014-10-30)
 -----------------------------------
 
-* Added support for translations on mutlple model inheritance levels.
+* Added support for translations on multiple model inheritance levels.
 * Added ``TranslatableAdmin.get_translation_objects()`` API.
 * Added ``TranslatableModel.create_translation()`` API.
 * Added ``TranslatableModel.get_translation()`` API.
@@ -152,5 +198,9 @@ Changes in version 0.9 (beta)
   Integrating django-hvad_ turned out to be very complex, hence this app was developped instead.
 
 
+.. _aldryn-translation-tools: https://github.com/aldryn/aldryn-translation-tools
 .. _django-fluent-pages: https://github.com/edoburu/django-fluent-pages
 .. _django-hvad: https://github.com/kristianoellegaard/django-hvad
+.. _django-mptt: https://github.com/django-mptt/django-mptt
+.. _django-slug-preview: https://github.com/edoburu/django-slug-preview
+.. _django-rest-framework: https://github.com/tomchristie/django-rest-framework

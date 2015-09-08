@@ -21,13 +21,21 @@ class TranslatableQuerySet(QuerySet):
 
     def __init__(self, *args, **kwargs):
         super(TranslatableQuerySet, self).__init__(*args, **kwargs)
-        self._language = []
+        self._language = None
 
 
     def _clone(self, klass=None, setup=False, **kw):
         c = super(TranslatableQuerySet, self)._clone(klass, setup, **kw)
         c._language = self._language
         return c
+
+
+    def create(self, **kwargs):
+        # Pass language setting to the object, as people start assuming things
+        # like .language('xx').create(..) which is a nice API after all.
+        if self._language:
+            kwargs['_current_language'] = self._language
+        return super(TranslatableQuerySet, self).create(**kwargs)
 
 
     def language(self, language_code=None):
@@ -126,11 +134,15 @@ class TranslatableManager(models.Manager):
     if django.VERSION < (1,8):
         get_query_set = get_queryset
 
+    # NOTE: Fetching the queryset is done by calling self.all() here on purpose.
+    # By using .all(), the proper get_query_set()/get_queryset() will be used for each Django version.
+    # Django 1.4/1.5 need to use get_query_set(), because the RelatedManager overrides that.
+
     def language(self, language_code=None):
         """
         Set the language code to assign to objects retrieved using this Manager.
         """
-        return self.get_queryset().language(language_code)
+        return self.all().language(language_code)
 
     def translated(self, *language_codes, **translated_fields):
         """
@@ -145,7 +157,7 @@ class TranslatableManager(models.Manager):
 
         This will query the translated model for the ``name`` field.
         """
-        return self.get_queryset().translated(*language_codes, **translated_fields)
+        return self.all().translated(*language_codes, **translated_fields)
 
     def active_translations(self, language_code=None, **translated_fields):
         """
@@ -156,7 +168,7 @@ class TranslatableManager(models.Manager):
 
         When ``hide_untranslated = True``, only the currently active language will be returned.
         """
-        return self.get_queryset().active_translations(language_code, **translated_fields)
+        return self.all().active_translations(language_code, **translated_fields)
 
 
 # Export the names in django-hvad style too:

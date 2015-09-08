@@ -8,8 +8,10 @@ Advanced usage patterns
    slugs
    migrating
    existing
+   mptt
    polymorphicmodel
    guardian
+   rest-framework
    multisite
    caching
    manual-models

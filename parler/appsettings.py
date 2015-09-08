@@ -18,7 +18,7 @@ PARLER_PER_VALUE_FALLBACK = getattr(settings, 'PARLER_PER_VALUE_FALLBACK', False
 # Have to fill the default section explicitly to avoid circular imports
 PARLER_LANGUAGES.setdefault('default', {})
 PARLER_LANGUAGES['default'].setdefault('code', PARLER_DEFAULT_LANGUAGE_CODE)
-PARLER_LANGUAGES['default'].setdefault('fallback', PARLER_DEFAULT_LANGUAGE_CODE)
+PARLER_LANGUAGES['default'].setdefault('fallbacks', [PARLER_DEFAULT_LANGUAGE_CODE])
 
 # Cleanup settings
 PARLER_DEFAULT_LANGUAGE_CODE = normalize_language_code(PARLER_DEFAULT_LANGUAGE_CODE)

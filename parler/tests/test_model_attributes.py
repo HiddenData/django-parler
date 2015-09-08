@@ -61,6 +61,12 @@ class ModelAttributeTests(AppTestCase):
         self.assertEqual(y.tr_title, "TRANS_TITLE")
 
 
+    def test_create_args(self):
+        y = SimpleModel.objects.language('nl').create(tr_title='TRANS_TITLE')
+        self.assertEqual(y.get_current_language(), 'nl')
+        self.assertEqual(y.tr_title, "TRANS_TITLE")
+
+
     def test_save_multiple(self):
         """
         Test the save_translations() function to store multiple languages.
@@ -138,6 +144,18 @@ class ModelAttributeTests(AppTestCase):
             x = SimpleModel.objects.get(pk=x.pk)
             self.assertEqual(x.tr_title, 'TITLE_FALLBACK')
 
+    def test_fallback_language_no_current(self):
+        """
+        Test whether the fallback language will be returned,
+        even when the current language does not have a translation.
+        """
+        x = SimpleModel()
+        x.set_current_language(self.conf_fallback)
+        x.tr_title = "TITLE_FALLBACK"
+
+        self.assertEqual(
+            x.safe_translation_getter('tr_title', language_code=self.other_lang1),
+            'TITLE_FALLBACK')
 
     def test_any_fallback_model(self):
         """
@@ -174,7 +192,6 @@ class ModelAttributeTests(AppTestCase):
             self.assertNumQueries(0, lambda: x._get_any_translated_model())   # Can fetch from cache next time.
             self.assertEqual(x._get_any_translated_model().language_code, self.other_lang1)
 
-
     def test_save_ignore_fallback_marker(self):
         """
         Test whether the ``save_translations()`` method skips fallback languages
@@ -185,6 +202,22 @@ class ModelAttributeTests(AppTestCase):
         x.set_current_language(self.other_lang2)
         # try fetching, causing an fallback marker
         x.safe_translation_getter('tr_title', any_language=True)
-
         # Now save. This should not raise errors
         x.save()
+
+    def test_model_with_zero_pk(self):
+        """
+        tests that the translated model is returned also when the pk is 0
+        """
+        x = SimpleModel()
+        x.set_current_language(self.other_lang1)
+        x.pk = 0
+        x.tr_title = "EMPTY_PK"
+
+        x.save()
+
+        # now fetch it from db
+        try:
+            SimpleModel.objects.get(pk=x.pk)
+        except TranslationDoesNotExist:
+            self.fail("zero pk is not supported!")

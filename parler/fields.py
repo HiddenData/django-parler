@@ -13,8 +13,7 @@ from __future__ import unicode_literals
 import logging
 
 from parler import appsettings
-from django.core.exceptions import FieldError
-from django.db.models.fields import Field
+
 from django.forms.forms import pretty_name
 
 log = logging.getLogger(__name__)

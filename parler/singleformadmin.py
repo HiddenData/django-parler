@@ -239,7 +239,7 @@ class TranslatableAdmin(ModelAdmin):
         if form is TranslatableModelForm:
             # TranslatableAdmin validation will not pass without form created
             # for specific model
-            form = modelform_factory(model, form, fields)
+            form = modelform_factory(model, form, fields='__all__')
 
         attrs = {
             'fields': fields,

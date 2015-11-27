@@ -181,6 +181,7 @@ class JSONTranslatedFields(object):
         JSONField(null=True, default={}) \
             .contribute_to_class(cls, 'translations_data')
         # TODO build and add customized parler_meta with all fields data
+        pmeta = JSONParlerMeta(self.fields)
 
 
 class TranslatedFields(object):
@@ -1012,6 +1013,17 @@ class ParlerMeta(object):
             self.rel_name,
             self.model.__name__
         )
+
+
+class JSONParlerMeta(object):
+    """
+    Meta data about translated fields.
+    """
+    def __init__(self, fields):
+        self.fields = fields.keys()
+
+    def get_all_fields(self):
+        return self.fields
 
 
 class ParlerOptions(object):

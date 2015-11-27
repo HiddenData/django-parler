@@ -2,7 +2,8 @@ from __future__ import unicode_literals
 from django.core.urlresolvers import reverse
 from django.db import models
 from parler.fields import TranslatedField
-from parler.models import TranslatableModel, TranslatedFields, TranslatedFieldsModel
+from parler.models import TranslatableModel, TranslatedFields,\
+                          TranslatedFieldsModel, JSONTranslatedFields
 from parler.utils.context import switch_language
 
 
@@ -148,3 +149,9 @@ class ForeignKeyTranslationModel(TranslatableModel):
         translated_foreign = models.ForeignKey('RegularModel'),
     )
     shared = models.CharField(max_length=200)
+
+
+class JSONModel(TranslatableModel):
+    translations = JSONTranslatedFields(
+        name = models.CharField(max_length=200)
+    )

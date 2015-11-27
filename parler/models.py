@@ -70,6 +70,7 @@ from parler.fields import TranslatedField, LanguageCodeDescriptor, TranslatedFie
 from parler.managers import TranslatableManager
 from parler.utils import compat
 from parler.utils.i18n import normalize_language_code, get_language_settings, get_language_title
+from django_pgjsonb import JSONField
 import sys
 
 try:
@@ -109,6 +110,9 @@ class TranslationDoesNotExist(AttributeError, ObjectDoesNotExist):
 
 _lazy_verbose_name = lazy(lambda x: ugettext("{0} Translation").format(x._meta.verbose_name), six.text_type)
 
+
+def create_translations_json(**fields):
+    pass
 
 def create_translations_model(shared_model, related_name, meta, **fields):
     """
@@ -204,6 +208,22 @@ class TranslatedFields(object):
         # Called from django.db.models.base.ModelBase.__new__
         self.name = name
         create_translations_model(cls, name, self.meta, **self.fields)
+
+
+class JsonTranslatableModel(models.Model):
+    """
+    Base model class to handle translastions in json field.
+    """
+    class Meta:
+        abstract = True
+
+    translations = JSONField()
+
+    #: Access to the language code
+    language_code = LanguageCodeDescriptor()
+
+    def __init__(self):
+        pass
 
 
 class TranslatableModel(models.Model):

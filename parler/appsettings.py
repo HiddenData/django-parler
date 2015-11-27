@@ -23,3 +23,6 @@ PARLER_LANGUAGES['default'].setdefault('fallbacks', [PARLER_DEFAULT_LANGUAGE_COD
 # Cleanup settings
 PARLER_DEFAULT_LANGUAGE_CODE = normalize_language_code(PARLER_DEFAULT_LANGUAGE_CODE)
 PARLER_LANGUAGES = add_default_language_settings(PARLER_LANGUAGES)
+
+# Backend settings
+PARLER_BACKEND = getattr(settings, 'PARLER_BACKEND', 'default')

@@ -171,6 +171,32 @@ def create_translations_model(shared_model, related_name, meta, **fields):
     return translations_model
 
 
+class JSONFieldProperty(object):
+    """
+    Descriptor for translated fields.
+    """
+
+    def __init__(self, name):
+        self.name = name
+
+    def __get__(self, instance, owner):
+        #TODO fallback?
+        lang = self._current_language
+        try:
+            return instance.translated_data[lang][self.name]
+        except KeyError:
+            raise TranslationDoesNotExist
+
+    def __set__(self, instance, value):
+        lang = self._current_language
+        if lang in instance.translated_data:
+            instance.translated_data[lang] = value
+        else:
+            instance.translated_data = {
+                lang: value
+            }
+
+
 class JSONTranslatedFields(object):
 
     def __init__(self,  **fields):
@@ -189,6 +215,9 @@ class JSONTranslatedFields(object):
             .contribute_to_class(cls, 'translations_data')
         # TODO Will it work?
         cls._parler_meta = JSONParlerMeta(self.fields)
+        # add properties
+        for field in self.fields.keys():
+            setattr(cls, field, JSONFieldProperty(field))
 
 
 class TranslatedFields(object):

@@ -178,10 +178,17 @@ class JSONTranslatedFields(object):
         self.fields = fields
 
     def contribute_to_class(self, cls, name, virtual_only=False):
+        # initial_translation = {}
+        # fallback_lang = settings.PARLER_LANGUAGES['default']['fallback']
+        # for field in self.fields.keys():
+        #     # TODO check if assigning for default lang and fallback is correct
+        #     initial_translation[field] = {
+        #         fallback_lang: field,
+        #     }
         JSONField(null=True, default={}) \
             .contribute_to_class(cls, 'translations_data')
-        # TODO build and add customized parler_meta with all fields data
-        pmeta = JSONParlerMeta(self.fields)
+        # TODO Will it work?
+        cls._parler_meta = JSONParlerMeta(self.fields)
 
 
 class TranslatedFields(object):
@@ -749,6 +756,49 @@ class TranslatableModel(models.Model):
             return default()
         else:
             return default
+
+
+class JSONTranslatableModel(TranslatableModel):
+
+    def _set_translated_fields(self, language_code=None, **fields):
+        """
+        Assign translations to fields in json.
+        """
+        if not language_code:
+            language_code = self._current_language
+        for field, translation in fields:
+            self.translations_data[field][language_code] = translation
+
+    def create_translation(self, language_code, **fields):
+        """
+        Simplified translation creation
+        """
+        self._set_translated_fields(language_code, **fields)
+        self.save(update_fields=['translations_data'])
+
+    def set_current_language(self, language_code, initialize=False):
+        """
+        Switch the currently activate language of the object.
+        """
+        self._current_language = \
+            normalize_language_code(language_code or get_language())
+
+    def has_translation(self, language_code=None, related_name=None):
+        """
+        Return whether a translation for the given language exists.
+        Defaults to the current language code.
+        """
+        if language_code is None:
+            language_code = self._current_language
+
+        # TODO caching? if needed here
+        return language_code in self.translations_data
+
+    def get_available_languages(self, related_name=None, include_unsaved=False):
+        """
+        Return the language codes of all translated variations.
+        """
+        return self.translations_data.keys()
 
 
 class TranslatedFieldsModelBase(ModelBase):

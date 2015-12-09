@@ -59,7 +59,7 @@ if not settings.configured:
                 'fallbacks': ['en'],
             },
         },
-        PARLER_BACKEND = 'default',
+        PARLER_BACKEND = 'json',
     )
 
 

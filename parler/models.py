@@ -181,26 +181,28 @@ class JSONFieldProperty(object):
 
     def __get__(self, instance, owner):
         #TODO fallback?
-        lang = self._current_language
+        lang = instance._current_language
         try:
-            return instance.translated_data[lang][self.name]
+            return instance.translations_data[lang][self.name]
         except KeyError:
             raise TranslationDoesNotExist
 
     def __set__(self, instance, value):
-        lang = self._current_language
-        if lang in instance.translated_data:
-            instance.translated_data[lang] = value
+        lang = instance._current_language
+        if lang in instance.translations_data:
+            instance.translations_data[lang][self.name] = value
         else:
-            instance.translated_data = {
-                lang: value
+            instance.translations_data = {
+                lang: {
+                    self.name: value
+                }
             }
 
 
 class JSONTranslatedFields(object):
 
     def __init__(self,  **fields):
-        super(JSONTranslatedFields, self).__init__(self, null=True)
+        super(JSONTranslatedFields, self).__init__()
         self.fields = fields
 
     def contribute_to_class(self, cls, name, virtual_only=False):
@@ -211,16 +213,17 @@ class JSONTranslatedFields(object):
         #     initial_translation[field] = {
         #         fallback_lang: field,
         #     }
-        JSONField(null=True, default={}) \
-            .contribute_to_class(cls, 'translations_data')
-        # TODO Will it work?
-        cls._parler_meta = JSONParlerMeta(self.fields)
+        translations_name = '{}_data'.format(name)
+        field = JSONField(null=True, default={})
+        field.contribute_to_class(cls, translations_name)
+        # cls._meta.add_field(field)
+        cls._parler_meta = JSONParlerMeta(translations_name, self.fields)
         # add properties
         for field in self.fields.keys():
             setattr(cls, field, JSONFieldProperty(field))
 
 
-class TranslatedFields(object):
+class TranslatedFieldsDefault(object):
     """
     Wrapper class to define translated fields on a model.
 
@@ -258,7 +261,7 @@ class TranslatedFields(object):
         create_translations_model(cls, name, self.meta, **self.fields)
 
 
-class TranslatableModel(models.Model):
+class TranslatableModelDefault(models.Model):
     """
     Base model class to handle translations.
 
@@ -295,7 +298,7 @@ class TranslatableModel(models.Model):
         self._current_language = None
 
         # Run original Django model __init__
-        super(TranslatableModel, self).__init__(*args, **kwargs)
+        super(TranslatableModelDefault, self).__init__(*args, **kwargs)
 
         # Assign translated args manually.
         self._translations_cache = defaultdict(dict)
@@ -651,7 +654,7 @@ class TranslatableModel(models.Model):
 
 
     def save(self, *args, **kwargs):
-        super(TranslatableModel, self).save(*args, **kwargs)
+        super(TranslatableModelDefault, self).save(*args, **kwargs)
 
         # Makes no sense to add these for translated model
         # Even worse: mptt 0.7 injects this parameter when it avoids updating the lft/rgt fields,
@@ -662,7 +665,7 @@ class TranslatableModel(models.Model):
 
     def delete(self, using=None):
         _delete_cached_translations(self)
-        super(TranslatableModel, self).delete(using)
+        super(TranslatableModelDefault, self).delete(using)
 
 
     def validate_unique(self, exclude=None):
@@ -672,7 +675,7 @@ class TranslatableModel(models.Model):
         # This is called from ModelForm._post_clean() or Model.full_clean()
         errors = {}
         try:
-            super(TranslatableModel, self).validate_unique(exclude=exclude)
+            super(TranslatableModelDefault, self).validate_unique(exclude=exclude)
         except ValidationError as e:
             errors = e.message_dict  # Django 1.5 + 1.6 compatible
 
@@ -787,7 +790,10 @@ class TranslatableModel(models.Model):
             return default
 
 
-class JSONTranslatableModel(TranslatableModel):
+class JSONTranslatableModel(TranslatableModelDefault):
+
+    class Meta:
+        abstract = True
 
     def _set_translated_fields(self, language_code=None, **fields):
         """
@@ -795,8 +801,10 @@ class JSONTranslatableModel(TranslatableModel):
         """
         if not language_code:
             language_code = self._current_language
-        for field, translation in fields:
-            self.translations_data[field][language_code] = translation
+        if language_code not in self.translations_data:
+            self.translations_data[language_code] = {}
+        for field, translation in fields.items():
+            self.translations_data[language_code][field] = translation
 
     def create_translation(self, language_code, **fields):
         """
@@ -1098,11 +1106,39 @@ class JSONParlerMeta(object):
     """
     Meta data about translated fields.
     """
-    def __init__(self, fields):
+    def __init__(self, translations_name, fields):
         self.fields = fields.keys()
+        self.translations_name = translations_name
+        self._extensions = []
 
     def get_all_fields(self):
         return self.fields
+
+    def get_all_models(self):
+        return []
+
+    def __iter__(self):
+        """
+        Access all :class:`ParlerMeta` objects associated.
+        """
+        return iter(self._extensions)
+
+    def __getitem__(self, item):
+        """
+        Get an :class:`ParlerMeta` object by index or model.
+        """
+        try:
+            if isinstance(item, six.integer_types):
+                return self._extensions[item]
+            elif isinstance(item, six.string_types):
+                return self._get_extension_by_related_name(related_name=item)
+            else:
+                return next(meta for meta in self._extensions if meta.model == item)
+        except (StopIteration, IndexError, KeyError):
+            raise KeyError("Item '{0}' not found".format(item))
+
+    def __len__(self):
+        return len(self._extensions)
 
 
 class ParlerOptions(object):
@@ -1279,3 +1315,11 @@ class ParlerOptions(object):
                     pass
 
             yield (meta, model_fields)
+
+if settings.PARLER_BACKEND == 'json':
+    TranslatableModel = JSONTranslatableModel
+    TranslatedFields = JSONTranslatedFields
+else:
+    TranslatableModel = TranslatableModelDefault
+    TranslatedFields = TranslatedFieldsDefault
+

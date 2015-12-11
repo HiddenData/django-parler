@@ -64,7 +64,7 @@ class QueryCountTests(AppTestCase):
         Test that .prefetch_related() works
         """
         with override_parler_settings(PARLER_ENABLE_CACHING=False):
-            self.assertNumTranslatedQueries(2, SimpleModel.objects.prefetch_related('translations'))
+            self.assertNumTranslatedQueries(2, SimpleModel.objects.all())
 
 
     def test_model_cache_queries(self):
@@ -78,6 +78,6 @@ class QueryCountTests(AppTestCase):
             self.assertNumTranslatedQueries(1 + len(self.country_list), qs)
             self.assertNumTranslatedQueries(0, qs)   # All should be cached on the QuerySet and object now.
 
-            qs = SimpleModel.objects.prefetch_related('translations')
+            qs = SimpleModel.objects.all()
             self.assertNumTranslatedQueries(2, qs)
             self.assertNumTranslatedQueries(0, qs)   # All should be cached on the QuerySet and object now.

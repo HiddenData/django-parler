@@ -56,6 +56,7 @@ The manager and queryset objects of django-parler can work together with django-
 from __future__ import unicode_literals
 from collections import defaultdict
 import django
+import json
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured, ValidationError, FieldError, ObjectDoesNotExist
 from django.db import models, router
@@ -183,16 +184,16 @@ class JSONFieldProperty(object):
         #TODO fallback?
         lang = instance._current_language
         try:
-            return instance.translations_data[lang][self.name]
+            return instance._translations[lang][self.name]
         except KeyError:
             raise TranslationDoesNotExist
 
     def __set__(self, instance, value):
         lang = instance._current_language
-        if lang in instance.translations_data:
-            instance.translations_data[lang][self.name] = value
+        if lang in instance._translations:
+            instance._translations[lang][self.name] = value
         else:
-            instance.translations_data = {
+            instance._translations = {
                 lang: {
                     self.name: value
                 }
@@ -206,21 +207,33 @@ class JSONTranslatedFields(object):
         self.fields = fields
 
     def contribute_to_class(self, cls, name, virtual_only=False):
-        # initial_translation = {}
-        # fallback_lang = settings.PARLER_LANGUAGES['default']['fallback']
-        # for field in self.fields.keys():
-        #     # TODO check if assigning for default lang and fallback is correct
-        #     initial_translation[field] = {
-        #         fallback_lang: field,
-        #     }
-        translations_name = '{}_data'.format(name)
+        translations_field = '{}_data'.format(name)
         field = JSONField(null=True, default={})
-        field.contribute_to_class(cls, translations_name)
-        # cls._meta.add_field(field)
-        cls._parler_meta = JSONParlerMeta(translations_name, self.fields)
+        field.contribute_to_class(cls, translations_field)
+
         # add properties
         for field in self.fields.keys():
             setattr(cls, field, JSONFieldProperty(field))
+
+        # set parler_meta
+        base = cls._parler_meta
+
+        if base is not None and base[-1].shared_model is cls:
+            # If a second translations model is added, register it in the same object level.
+            base.add_meta(JSONParlerMeta(
+                model=cls,
+                translations_name=translations_field
+            ))
+        else:
+            # Place a new _parler_meta at the current inheritance level.
+            # It links to the previous base.
+            cls._parler_meta = JSONParlerOptions(
+                base,
+                model=cls,
+                translations_name=translations_field,
+                fields=self.fields.keys()
+            )
+
 
 
 class TranslatedFieldsDefault(object):
@@ -795,6 +808,13 @@ class JSONTranslatableModel(TranslatableModelDefault):
     class Meta:
         abstract = True
 
+    def __init__(self, *args, **kwargs):
+        if not getattr(self, '_translations', None):
+            self._translations = {}
+
+        super(JSONTranslatableModel, self).__init__(*args, **kwargs)
+
+
     def _set_translated_fields(self, language_code=None, **fields):
         """
         Assign translations to fields in json.
@@ -802,9 +822,9 @@ class JSONTranslatableModel(TranslatableModelDefault):
         if not language_code:
             language_code = self._current_language
         if language_code not in self.translations_data:
-            self.translations_data[language_code] = {}
+            self._translations[language_code] = {}
         for field, translation in fields.items():
-            self.translations_data[language_code][field] = translation
+            self._translations[language_code][field] = translation
 
     def create_translation(self, language_code, **fields):
         """
@@ -835,7 +855,22 @@ class JSONTranslatableModel(TranslatableModelDefault):
         """
         Return the language codes of all translated variations.
         """
-        return self.translations_data.keys()
+        return self._translations.keys()
+
+    def save(self, *args, **kwargs):
+        self.translations_data = self._translations
+        super(TranslatableModelDefault, self).save(*args, **kwargs)
+
+    @classmethod
+    def from_db(cls, db, field_names, values):
+        instance = super(JSONTranslatableModel, cls).from_db(
+            db, field_names, values)
+        instance._translations = \
+            json.loads(instance.translations_data) \
+                if instance.translations_data else {}
+
+        return instance
+
 
 
 class TranslatedFieldsModelBase(ModelBase):
@@ -1102,45 +1137,6 @@ class ParlerMeta(object):
         )
 
 
-class JSONParlerMeta(object):
-    """
-    Meta data about translated fields.
-    """
-    def __init__(self, translations_name, fields):
-        self.fields = fields.keys()
-        self.translations_name = translations_name
-        self._extensions = []
-
-    def get_all_fields(self):
-        return self.fields
-
-    def get_all_models(self):
-        return []
-
-    def __iter__(self):
-        """
-        Access all :class:`ParlerMeta` objects associated.
-        """
-        return iter(self._extensions)
-
-    def __getitem__(self, item):
-        """
-        Get an :class:`ParlerMeta` object by index or model.
-        """
-        try:
-            if isinstance(item, six.integer_types):
-                return self._extensions[item]
-            elif isinstance(item, six.string_types):
-                return self._get_extension_by_related_name(related_name=item)
-            else:
-                return next(meta for meta in self._extensions if meta.model == item)
-        except (StopIteration, IndexError, KeyError):
-            raise KeyError("Item '{0}' not found".format(item))
-
-    def __len__(self):
-        return len(self._extensions)
-
-
 class ParlerOptions(object):
     """
     Meta data for the translatable models.
@@ -1315,6 +1311,96 @@ class ParlerOptions(object):
                     pass
 
             yield (meta, model_fields)
+
+
+class JSONParlerMeta(object):
+    """
+    Meta data about translated fields.
+    """
+    def __init__(self, model, translations_name, fields):
+        self.shared_model = model
+        self.fields = fields
+        self.translations_name = translations_name
+        self._extensions = []
+
+
+class JSONParlerOptions(object):
+
+    def __init__(self, base, model, translations_name, fields):
+
+        self.base = base
+        self.inherited = False
+        self.fields = fields
+
+        if base is None:
+            # Make access easier.
+            # self.root_model = None
+            self.root_translations_name = translations_name
+
+            # Initial state for lookups
+            self._root = None
+            self._extensions = []
+            self._fields_to_model = OrderedDict()
+        else:
+            # Inherited situation
+            # Still take the base situation as starting point,
+            # and register the added translations as extension.
+            root = base._root or base
+            base.inherited = True
+            self._root = root
+            #self.root_model = root.root_model
+            self.root_translations_name = root.root_translations_name
+
+            # This object will amend the caches of the previous object
+            # The _extensions list gives access to all inheritance levels where ParlerOptions is defined.
+            self._extensions = list(base._extensions)
+            self._fields_to_model = base._fields_to_model.copy()
+
+        self.add_meta(JSONParlerMeta(model, translations_name, fields))
+
+    def get_all_models(self):
+        return []
+
+    def add_meta(self, meta):
+        if self.inherited:
+            raise RuntimeError("Adding translations afterwards to an already inherited model is not supported yet.")
+
+        self._extensions.append(meta)
+
+    def get_all_fields(self):
+        return self.fields
+
+    def __iter__(self):
+        """
+        Access all :class:`ParlerMeta` objects associated.
+        """
+        return iter(self._extensions)
+
+    def __getitem__(self, item):
+        """
+        Get an :class:`ParlerMeta` object by index or model.
+        """
+        try:
+            if isinstance(item, six.integer_types):
+                return self._extensions[item]
+            elif isinstance(item, six.string_types):
+                return self._get_extension_by_related_name(related_name=item)
+            else:
+                return next(meta for meta in self._extensions if meta.model == item)
+        except (StopIteration, IndexError, KeyError):
+            raise KeyError("Item '{0}' not found".format(item))
+
+    def __len__(self):
+        return len(self._extensions)
+
+    @property
+    def root(self):
+        """
+        The top level object in the inheritance chain.
+        This is an alias for accessing the first item in the collection.
+        """
+        return self._extensions[0]
+
 
 if settings.PARLER_BACKEND == 'json':
     TranslatableModel = JSONTranslatableModel

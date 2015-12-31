@@ -821,7 +821,7 @@ class JSONTranslatableModel(TranslatableModelDefault):
         """
         if not language_code:
             language_code = self._current_language
-        if language_code not in self.translations_data:
+        if language_code not in self._translations:
             self._translations[language_code] = {}
         for field, translation in fields.items():
             self._translations[language_code][field] = translation
@@ -1341,6 +1341,8 @@ class JSONParlerOptions(object):
             self._root = None
             self._extensions = []
             self._fields_to_model = OrderedDict()
+            for field in fields:
+                self._fields_to_model[field] = model
         else:
             # Inherited situation
             # Still take the base situation as starting point,
@@ -1355,6 +1357,11 @@ class JSONParlerOptions(object):
             # The _extensions list gives access to all inheritance levels where ParlerOptions is defined.
             self._extensions = list(base._extensions)
             self._fields_to_model = base._fields_to_model.copy()
+            for field in fields:
+                if field not in self._fields_to_model:
+                    self._fields_to_model[field] = model
+                else:
+                    print 'DAFAQ'
 
         self.add_meta(JSONParlerMeta(model, translations_name, fields))
 
@@ -1368,7 +1375,7 @@ class JSONParlerOptions(object):
         self._extensions.append(meta)
 
     def get_all_fields(self):
-        return self.fields
+        return self._fields_to_model.keys()
 
     def __iter__(self):
         """

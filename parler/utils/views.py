@@ -1,6 +1,8 @@
 """
 Internal DRY functions.
 """
+import collections
+
 from django.conf import settings
 from parler import appsettings
 from parler.utils import normalize_language_code, is_multilingual_project, get_language_title
@@ -80,3 +82,14 @@ class TabsList(list):
         self.current_is_translated = False
         self.allow_deletion = False
         super(TabsList, self).__init__(seq)
+
+
+def update_recursive(d, u):
+    """Recursively update a dict."""
+    for k, v in u.iteritems():
+        if isinstance(v, collections.Mapping):
+            r = update_recursive(d.get(k, {}), v)
+            d[k] = r
+        else:
+            d[k] = u[k]
+    return d

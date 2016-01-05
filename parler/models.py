@@ -71,6 +71,7 @@ from parler.fields import TranslatedField, LanguageCodeDescriptor, TranslatedFie
 from parler.managers import TranslatableManager
 from parler.utils import compat
 from parler.utils.i18n import normalize_language_code, get_language_settings, get_language_title
+from parler.utils.views import update_recursive
 from django_pgjsonb import JSONField
 from django.contrib.postgres.fields import ArrayField
 
@@ -858,19 +859,31 @@ class JSONTranslatableModel(TranslatableModelDefault):
         return self._translations.keys()
 
     def save(self, *args, **kwargs):
-        self.translations_data = self._translations
+        # self.translations_data = self._translations
+        for meta in self._parler_meta:
+            if hasattr(meta, 'translations_name'):
+                translations_data = getattr(self, meta.translations_name)
+                for lang, lang_data in self._translations.items():
+                    translations_data[lang] = translations_data.get(lang, {})
+                    for field in meta.fields:
+                        translations_data[lang][field] = lang_data.get(field)
         super(TranslatableModelDefault, self).save(*args, **kwargs)
 
     @classmethod
     def from_db(cls, db, field_names, values):
         instance = super(JSONTranslatableModel, cls).from_db(
             db, field_names, values)
-        instance._translations = \
-            json.loads(instance.translations_data) \
-                if instance.translations_data else {}
+        instance._translations = {}
+        # Get all translations from all inheritance levels
+        # TODO move this operations to JSONParlerOptions ?
+        for meta in cls._parler_meta:
+            update_recursive(instance._translations, json.loads(
+                getattr(instance, meta.translations_name, '{}')))
+        # instance._translations = \
+        #     json.loads(instance.translations_data) \
+        #         if instance.translations_data else {}
 
         return instance
-
 
 
 class TranslatedFieldsModelBase(ModelBase):
@@ -1336,6 +1349,7 @@ class JSONParlerOptions(object):
             # Make access easier.
             # self.root_model = None
             self.root_translations_name = translations_name
+            self.translations_name = translations_name
 
             # Initial state for lookups
             self._root = None
@@ -1352,6 +1366,7 @@ class JSONParlerOptions(object):
             self._root = root
             #self.root_model = root.root_model
             self.root_translations_name = root.root_translations_name
+            self.translations_name = translations_name
 
             # This object will amend the caches of the previous object
             # The _extensions list gives access to all inheritance levels where ParlerOptions is defined.

@@ -850,6 +850,8 @@ class JSONTranslatableModel(TranslatableModelDefault):
         """
         self._current_language = \
             normalize_language_code(language_code or get_language())
+        if initialize and not self._translations.get(language_code):
+            self._translations[language_code] = {}
 
     def has_translation(self, language_code=None, related_name=None):
         """

@@ -62,6 +62,7 @@ from django.core.exceptions import ImproperlyConfigured, ValidationError, FieldE
 from django.db import models, router
 from django.db.models.base import ModelBase
 from django.db.models.fields.related import ReverseSingleRelatedObjectDescriptor
+from django.forms.forms import pretty_name
 from django.utils.functional import lazy
 from django.utils.translation import get_language, ugettext, ugettext_lazy as _
 from django.utils import six
@@ -178,12 +179,21 @@ class JSONFieldProperty(object):
     Descriptor for translated fields.
     """
 
-    def __init__(self, name):
+    def __init__(self, name, field):
         self.name = name
+        try:
+            self.short_description = field.verbose_name
+        except AttributeError:
+            self.short_description = pretty_name(name)
 
     def __get__(self, instance, owner):
         #TODO fallback?
-        lang = instance._current_language
+        try:
+            lang = instance._current_language
+        except AttributeError:
+            # Might mean the attribute is accessed from a class
+            # not an instance
+            return self
         try:
             return instance._translations[lang][self.name]
         except KeyError:
@@ -213,8 +223,8 @@ class JSONTranslatedFields(object):
         field.contribute_to_class(cls, translations_field)
 
         # add properties
-        for field in self.fields.keys():
-            setattr(cls, field, JSONFieldProperty(field))
+        for field_name, field in self.fields.items():
+            setattr(cls, field_name, JSONFieldProperty(field_name, field))
 
         # set parler_meta
         base = cls._parler_meta
@@ -1337,7 +1347,7 @@ class JSONParlerMeta(object):
         self._extensions = []
 
 
-class JSONParlerOptions(object):
+class JSONParlerOptions(ParlerOptions):
 
     def __init__(self, base, model, translations_name, fields):
 

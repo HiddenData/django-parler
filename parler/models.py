@@ -1466,7 +1466,7 @@ class JSONParlerOptions(ParlerOptions):
 
     def get_all_translations_fields(self):
         """Return the names of all translations fields."""
-        return [meta.translations_name for meta in self.extensions]
+        return [meta.translations_name for meta in self._extensions]
 
 
     def __iter__(self):

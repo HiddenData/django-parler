@@ -65,6 +65,7 @@ if not settings.configured:
 
 def runtests():
     argv = sys.argv[:1] + ['test', 'parler', 'article'] + sys.argv[1:]
+    # argv = sys.argv[:1] + ['test', 'parler.tests.test_model_attributes.ModelAttributeTests.test_default_language'] + sys.argv[1:]
     # argv = sys.argv[:1] + ['test', 'parler.tests.test_xxx.XxxTests.test_xxx'] + sys.argv[1:]
     execute_from_command_line(argv)
 

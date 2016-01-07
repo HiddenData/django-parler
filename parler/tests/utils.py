@@ -1,4 +1,5 @@
 from __future__ import print_function
+import django
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.management import call_command
@@ -9,6 +10,18 @@ from django.test.utils import override_settings
 from django.utils.importlib import import_module
 import os
 from parler import appsettings
+
+
+def clear_cache():
+    """
+    Clear internal cache of apps loading
+    """
+    if django.VERSION >= (1.7):
+        from django.db.models import loading
+        loading.cache.loaded = False
+    else:
+        from django.apps import apps
+        apps.clear_cache()
 
 
 class override_parler_settings(override_settings):
@@ -57,7 +70,8 @@ class AppTestCase(TestCase):
 
                     # Flush caches
                     testapp = import_module(appname)
-                    loading.cache.loaded = False
+                    #loading.cache.loaded = False
+                    clear_cache()
                     app_directories.app_template_dirs += (
                         os.path.join(os.path.dirname(testapp.__file__), 'templates'),
                     )

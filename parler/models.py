@@ -181,9 +181,9 @@ class JSONFieldProperty(object):
 
     def __init__(self, name, field):
         self.name = name
-        try:
+        if hasattr(field, 'verbose_name') and field.verbose_name:
             self.short_description = field.verbose_name
-        except AttributeError:
+        else:
             self.short_description = pretty_name(name)
 
     def __get__(self, instance, owner):

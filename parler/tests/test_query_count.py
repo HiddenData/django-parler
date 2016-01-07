@@ -6,6 +6,9 @@ from .utils import AppTestCase, override_parler_settings
 from .testapp.models import SimpleModel
 
 
+JSON_BACKEND = appsettings.PARLER_BACKEND == 'json'
+
+
 class QueryCountTests(AppTestCase):
     """
     Test model construction
@@ -55,16 +58,24 @@ class QueryCountTests(AppTestCase):
         """
         Test that uncached queries work, albeit slowly.
         """
-        with override_parler_settings(PARLER_ENABLE_CACHING=False):
-            self.assertNumTranslatedQueries(1 + len(self.country_list), SimpleModel.objects.all())
+        if JSON_BACKEND:
+            with override_parler_settings(PARLER_ENABLE_CACHING=False):
+                self.assertNumTranslatedQueries(1, SimpleModel.objects.all())
+        else:
+            with override_parler_settings(PARLER_ENABLE_CACHING=False):
+                self.assertNumTranslatedQueries(1 + len(self.country_list), SimpleModel.objects.all())
 
 
     def test_prefetch_queries(self):
         """
         Test that .prefetch_related() works
         """
-        with override_parler_settings(PARLER_ENABLE_CACHING=False):
-            self.assertNumTranslatedQueries(2, SimpleModel.objects.all())
+        if JSON_BACKEND:
+            with override_parler_settings(PARLER_ENABLE_CACHING=False):
+                self.assertNumTranslatedQueries(1, SimpleModel.objects.all())
+        else:
+            with override_parler_settings(PARLER_ENABLE_CACHING=False):
+                self.assertNumTranslatedQueries(2, SimpleModel.objects.all())
 
 
     def test_model_cache_queries(self):
@@ -75,9 +86,15 @@ class QueryCountTests(AppTestCase):
 
         with override_parler_settings(PARLER_ENABLE_CACHING=False):
             qs = SimpleModel.objects.all()
-            self.assertNumTranslatedQueries(1 + len(self.country_list), qs)
+            if JSON_BACKEND:
+                self.assertNumTranslatedQueries(1, qs)
+            else:
+                self.assertNumTranslatedQueries(1 + len(self.country_list), qs)
             self.assertNumTranslatedQueries(0, qs)   # All should be cached on the QuerySet and object now.
 
             qs = SimpleModel.objects.all()
-            self.assertNumTranslatedQueries(2, qs)
+            if JSON_BACKEND:
+                self.assertNumTranslatedQueries(1, qs)
+            else:
+                self.assertNumTranslatedQueries(2, qs)
             self.assertNumTranslatedQueries(0, qs)   # All should be cached on the QuerySet and object now.

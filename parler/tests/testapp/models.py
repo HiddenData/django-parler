@@ -1,10 +1,14 @@
 from __future__ import unicode_literals
 from django.core.urlresolvers import reverse
 from django.db import models
+from django.conf import settings
 from parler.fields import TranslatedField
 from parler.models import TranslatableModel, TranslatedFields,\
                           TranslatedFieldsModel
 from parler.utils.context import switch_language
+
+
+JSON_BACKEND = settings.PARLER_BACKEND == 'json'
 
 
 class ManualModel(TranslatableModel):
@@ -64,16 +68,24 @@ class ArticleSlugModel(TranslatableModel):
             return reverse('article-slug-test-view', kwargs={'slug': self.slug})
 
 
-class AbstractModel(TranslatableModel):
-    # Already declared, but not yet linkable to a TranslatedFieldsModel
-    # TODO TranslatedField not supported
-    # tr_title = TranslatedField(any_language=True)
-    abstr_translations = TranslatedFields(
-        tr_title = models.CharField('Translated Title', max_length=200)
-    )
+if JSON_BACKEND:
+    class AbstractModel(TranslatableModel):
+        # Already declared, but not yet linkable to a TranslatedFieldsModel
+        # TODO TranslatedField not supported
+        # tr_title = TranslatedField(any_language=True)
+        abstr_translations = TranslatedFields(
+            tr_title = models.CharField(max_length=200)
+        )
 
-    class Meta:
-        abstract = True
+        class Meta:
+            abstract = True
+else:
+    class AbstractModel(TranslatableModel):
+        # Already declared, but not yet linkable to a TranslatedFieldsModel
+        tr_title = TranslatedField(any_language=True)
+
+        class Meta:
+            abstract = True
 
 
 class ConcreteModel(AbstractModel):

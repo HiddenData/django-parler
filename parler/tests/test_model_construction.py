@@ -1,7 +1,11 @@
 from django.core.cache import cache
+from django.conf import settings
 from django.db.models import Manager
 from .utils import AppTestCase
 from .testapp.models import ManualModel, ManualModelTranslations, SimpleModel, Level1, Level2, ProxyBase, ProxyModel, DoubleModel, RegularModel, CharModel
+
+
+JSON_BACKEND = settings.PARLER_BACKEND = 'json'
 
 
 class ModelConstructionTests(AppTestCase):
@@ -30,19 +34,29 @@ class ModelConstructionTests(AppTestCase):
         Test the inherited model syntax.
         """
         # First level has 1 ParlerMeta object
-        self.assertEqual(Level1._parler_meta.root.translations_name, 'l1_translations')
-        # self.assertEqual(Level1._parler_meta.root.model.__name__, 'Level1Translation')
+        if JSON_BACKEND:
+            l1_translations_name = 'l1_translations_data'
+            l2_translations_name = 'l2_translations_data'
+        else:
+            l1_translations_name = 'l1_translations'
+            l2_translations_name = 'l2_translations'
+
+        self.assertEqual(Level1._parler_meta.root.translations_name, l1_translations_name)
+        if not JSON_BACKEND:
+            self.assertEqual(Level1._parler_meta.root.model.__name__, 'Level1Translation')
         self.assertEqual(len(Level1._parler_meta), 1)
 
         # Second level has 2 ParlerMeta objects.
         self.assertEqual(len(Level2._parler_meta), 2)
-        self.assertEqual(Level2._parler_meta[0].translations_name, 'l1_translations')
-        self.assertEqual(Level2._parler_meta[1].translations_name, 'l2_translations')
-        # self.assertEqual(Level2._parler_meta[1].model.__name__, 'Level2Translation')
+        self.assertEqual(Level2._parler_meta[0].translations_name, l1_translations_name)
+        self.assertEqual(Level2._parler_meta[1].translations_name, l2_translations_name)
+        if not JSON_BACKEND:
+            self.assertEqual(Level2._parler_meta[1].model.__name__, 'Level2Translation')
 
         # Level 2 root attributes should point to the top-level object (Level1)
-        # self.assertEqual(Level2._parler_meta.root_model.__name__, 'Level1Translation')
-        self.assertEqual(Level2._parler_meta.root_translations_name, 'l1_translations')
+        if not JSON_BACKEND:
+            self.assertEqual(Level2._parler_meta.root_model.__name__, 'Level1Translation')
+        self.assertEqual(Level2._parler_meta.root_translations_name, l1_translations_name)
         self.assertEqual(Level2._parler_meta.root, Level1._parler_meta.root)
 
 
@@ -50,21 +64,29 @@ class ModelConstructionTests(AppTestCase):
         """
         Test whether proxy models can get new translations
         """
+        if JSON_BACKEND:
+            base_translations_name = 'base_translations_data'
+            proxy_translations_name = 'proxy_translations_data'
+        else:
+            base_translations_name = 'base_translations'
+            proxy_translations_name = 'proxy_translations'
         # First level has 1 ParlerMeta object
-        self.assertEqual(ProxyBase._parler_meta.root.translations_name, 'base_translations')
+        self.assertEqual(ProxyBase._parler_meta.root.translations_name, base_translations_name)
         self.assertEqual(len(ProxyBase._parler_meta), 1)
 
         # Second level has 2 ParlerMeta objects
         self.assertEqual(len(ProxyModel._parler_meta), 2)
-        self.assertEqual(ProxyModel._parler_meta[0].translations_name, 'base_translations')
-        self.assertEqual(ProxyModel._parler_meta[1].translations_name, 'proxy_translations')
+        self.assertEqual(ProxyModel._parler_meta[0].translations_name, base_translations_name)
+        self.assertEqual(ProxyModel._parler_meta[1].translations_name, proxy_translations_name)
 
-        # self.assertEqual(ProxyModel._parler_meta[0].model.__name__, 'ProxyBaseTranslation')
-        # self.assertEqual(ProxyModel._parler_meta[1].model.__name__, 'ProxyModelTranslation')
+        if not JSON_BACKEND:
+            self.assertEqual(ProxyModel._parler_meta[0].model.__name__, 'ProxyBaseTranslation')
+            self.assertEqual(ProxyModel._parler_meta[1].model.__name__, 'ProxyModelTranslation')
 
         # Second inheritance level attributes should point to the top-level object (ProxyBase)
-        # self.assertEqual(ProxyModel._parler_meta.root_model.__name__, 'ProxyBaseTranslation')
-        self.assertEqual(ProxyModel._parler_meta.root_translations_name, 'base_translations')
+        if not JSON_BACKEND:
+            self.assertEqual(ProxyModel._parler_meta.root_model.__name__, 'ProxyBaseTranslation')
+        self.assertEqual(ProxyModel._parler_meta.root_translations_name, base_translations_name)
         self.assertEqual(ProxyModel._parler_meta.root, ProxyBase._parler_meta.root)
 
 

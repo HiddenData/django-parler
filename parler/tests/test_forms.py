@@ -77,21 +77,22 @@ class FormTests(AppTestCase):
         self.assertRaises(ValidationError, lambda: form.instance.validate_unique())
 
 
-    def test_not_null_foreignkey_in_translation(self):
-        """
-        Simulate scenario for model with translation field of type foreign key (not null).
-          1. User create model with one translation (EN)
-          2. Switch to another language in admin (FR)
-        """
-
-        # create object with translation
-        r1 = RegularModel.objects.create(original_field='r1')
-        a = ForeignKeyTranslationModel.objects.create(translated_foreign=r1, shared='EN')
-
-        # same way as TranslatableAdmin.get_object() inicializing translation, when user swich to new translation language
-        a.set_current_language('fr', initialize=True)
-
-        # inicialize form
-        form = ForeignKeyTranslationModelForm(instance=a)
-
-        self.assertTrue(True)
+    # TODO No support for foreign keys in translations
+    # def test_not_null_foreignkey_in_translation(self):
+    #     """
+    #     Simulate scenario for model with translation field of type foreign key (not null).
+    #       1. User create model with one translation (EN)
+    #       2. Switch to another language in admin (FR)
+    #     """
+    #
+    #     # create object with translation
+    #     r1 = RegularModel.objects.create(original_field='r1')
+    #     a = ForeignKeyTranslationModel.objects.create(translated_foreign=r1, shared='EN')
+    #
+    #     # same way as TranslatableAdmin.get_object() inicializing translation, when user swich to new translation language
+    #     a.set_current_language('fr', initialize=True)
+    #
+    #     # inicialize form
+    #     form = ForeignKeyTranslationModelForm(instance=a)
+    #
+    #     self.assertTrue(True)

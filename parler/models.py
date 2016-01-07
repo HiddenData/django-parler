@@ -219,8 +219,8 @@ class JSONTranslatedFields(object):
 
     def contribute_to_class(self, cls, name, virtual_only=False):
         translations_field = '{}_data'.format(name)
-        field = JSONField(null=True, default={})
-        field.contribute_to_class(cls, translations_field)
+        json_field = JSONField(null=True, default={})
+        json_field.contribute_to_class(cls, translations_field)
 
         # add properties
         for field_name, field in self.fields.items():
@@ -842,7 +842,7 @@ class JSONTranslatableModel(TranslatableModelDefault):
         Simplified translation creation
         """
         self._set_translated_fields(language_code, **fields)
-        self.save(update_fields=['translations_data'])
+        self.save(update_fields=[self._parler_meta.translations_name])
 
     def set_current_language(self, language_code, initialize=False):
         """
@@ -862,13 +862,60 @@ class JSONTranslatableModel(TranslatableModelDefault):
             language_code = self._current_language
 
         # TODO caching? if needed here
-        return language_code in self.translations_data
+        return language_code in self._translations
 
     def get_available_languages(self, related_name=None, include_unsaved=False):
         """
         Return the language codes of all translated variations.
         """
         return self._translations.keys()
+
+    def safe_translation_getter(self, field, default=None, language_code=None, any_language=False):
+        """
+        Fetch a translated property, and return a default value
+        when both the translation and fallback language are missing.
+
+        When ``any_language=True`` is used, the function also looks
+        into other languages to find a suitable value. This feature can be useful
+        for "title" attributes for example, to make sure there is at least something being displayed.
+        Also consider using ``field = TranslatedField(any_language=True)`` in the model itself,
+        to make this behavior the default for the given field.
+
+        .. versionchanged 1.5:: The *default* parameter may also be a callable.
+        """
+        # meta = self._parler_meta._get_extension_by_field(field)
+
+        # Extra feature: query a single field from a other translation.
+        if language_code and language_code != self._current_language:
+            try:
+                return self._translations[language_code][field]
+            except KeyError:
+                # try fallback language
+                for lang in self.get_fallback_languages():
+                    try:
+                        return self._translations[lang][field]
+                    except KeyError:
+                        continue
+        else:
+            # By default, query via descriptor (TranslatedFieldDescriptor)
+            # which also attempts the fallback language if configured to do so.
+            try:
+                return getattr(self, field)
+            except TranslationDoesNotExist:
+                pass
+
+        if any_language:
+            # TODO optimize
+            for lang, translations in self._translations.keys():
+                try:
+                    return translations[field]
+                except KeyError:
+                    pass
+
+        if callable(default):
+            return default()
+        else:
+            return default
 
     def save(self, *args, **kwargs):
         # self.translations_data = self._translations
@@ -1403,6 +1450,18 @@ class JSONParlerOptions(ParlerOptions):
 
     def get_all_fields(self):
         return self._fields_to_model.keys()
+
+    def _get_extension_by_field(self, name):
+        """
+        Find the ParlerOptions object that corresponds with the given translated field.
+        """
+        if name is None:
+            raise TypeError("Expected field name")
+
+        # Reuse existing lookups.
+        for meta in self._extensions:
+            if name in meta.fields.keys():
+                return meta
 
     def __iter__(self):
         """

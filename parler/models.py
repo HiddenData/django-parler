@@ -919,14 +919,15 @@ class JSONTranslatableModel(TranslatableModelDefault):
             return default
 
     def save(self, *args, **kwargs):
-        # self.translations_data = self._translations
         for meta in self._parler_meta:
             if hasattr(meta, 'translations_name'):
                 translations_data = getattr(self, meta.translations_name)
                 for lang, lang_data in self._translations.items():
-                    translations_data[lang] = translations_data.get(lang, {})
-                    for field in meta.fields:
-                        translations_data[lang][field] = lang_data.get(field)
+                    translations_data[lang] = lang_data
+                    if not lang_data:
+                        translations_data.pop(lang, None)
+                        self._translations.pop(lang, None)
+
         super(TranslatableModelDefault, self).save(*args, **kwargs)
 
     @classmethod

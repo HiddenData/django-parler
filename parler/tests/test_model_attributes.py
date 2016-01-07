@@ -135,7 +135,11 @@ class ModelAttributeTests(AppTestCase):
         x.set_current_language('nl', initialize=True)
         x.save()
 
-        self.assertEqual(sorted(x.get_available_languages()), ['en', 'fr', 'nl'])
+        if JSON_BACKEND:
+            # json backend won't save empty translations
+            self.assertEqual(sorted(x.get_available_languages()), [])
+        else:
+            self.assertEqual(sorted(x.get_available_languages()), ['en', 'fr', 'nl'])
 
 
     def test_create_translation(self):

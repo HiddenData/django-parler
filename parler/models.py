@@ -891,8 +891,9 @@ class JSONTranslatableModel(TranslatableModelDefault):
             try:
                 return self._translations[language_code][field]
             except KeyError:
-                # try fallback language
-                for lang in self.get_fallback_languages():
+                # try current and fallback languages
+                check_langs = [self._current_language] + self.get_fallback_languages()
+                for lang in check_langs:
                     try:
                         return self._translations[lang][field]
                     except KeyError:

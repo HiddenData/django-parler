@@ -136,3 +136,6 @@ PARLER_LANGUAGES = {
         #'fallbacks': ['en'],
     }
 }
+
+# TODO parametrize
+PARLER_BACKEND = 'json'

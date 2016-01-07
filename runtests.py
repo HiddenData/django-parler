@@ -65,7 +65,7 @@ if not settings.configured:
 
 def runtests():
     argv = sys.argv[:1] + ['test', 'parler', 'article'] + sys.argv[1:]
-    #argv = sys.argv[:1] + ['test', 'parler.tests.test_forms.FormTests.test_not_null_foreignkey_in_translation'] + sys.argv[1:]
+    # argv = sys.argv[:1] + ['test', 'parler.tests.test_xxx.XxxTests.test_xxx'] + sys.argv[1:]
     execute_from_command_line(argv)
 
 if __name__ == '__main__':

@@ -28,7 +28,8 @@ class SimpleModel(TranslatableModel):
 
 class AnyLanguageModel(TranslatableModel):
     shared = models.CharField(max_length=200, default='')
-    tr_title = TranslatedField(any_language=True)
+    # TODO TranslatedField not supported
+    # tr_title = TranslatedField(any_language=True)
 
     translations = TranslatedFields(
         tr_title = models.CharField(max_length=200)
@@ -65,7 +66,11 @@ class ArticleSlugModel(TranslatableModel):
 
 class AbstractModel(TranslatableModel):
     # Already declared, but not yet linkable to a TranslatedFieldsModel
-    tr_title = TranslatedField(any_language=True)
+    # TODO TranslatedField not supported
+    # tr_title = TranslatedField(any_language=True)
+    abstr_translations = TranslatedFields(
+        tr_title = models.CharField('Translated Title', max_length=200)
+    )
 
     class Meta:
         abstract = True

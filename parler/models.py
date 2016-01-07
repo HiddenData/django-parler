@@ -187,7 +187,6 @@ class JSONFieldProperty(object):
             self.short_description = pretty_name(name)
 
     def __get__(self, instance, owner):
-        #TODO fallback?
         try:
             lang = instance._current_language
         except AttributeError:
@@ -197,6 +196,12 @@ class JSONFieldProperty(object):
         try:
             return instance._translations[lang][self.name]
         except KeyError:
+            # Fallback
+            for lang in instance.get_fallback_languages():
+                try:
+                    return instance._translations[lang][self.name]
+                except KeyError:
+                    continue
             raise TranslationDoesNotExist
 
     def __set__(self, instance, value):
@@ -204,11 +209,7 @@ class JSONFieldProperty(object):
         if lang in instance._translations:
             instance._translations[lang][self.name] = value
         else:
-            instance._translations = {
-                lang: {
-                    self.name: value
-                }
-            }
+            instance._translations[lang] = {self.name: value}
 
 
 class JSONTranslatedFields(object):
@@ -906,7 +907,7 @@ class JSONTranslatableModel(TranslatableModelDefault):
 
         if any_language:
             # TODO optimize
-            for lang, translations in self._translations.keys():
+            for lang, translations in self._translations.items():
                 try:
                     return translations[field]
                 except KeyError:
@@ -1460,8 +1461,13 @@ class JSONParlerOptions(ParlerOptions):
 
         # Reuse existing lookups.
         for meta in self._extensions:
-            if name in meta.fields.keys():
+            if name in meta.fields:
                 return meta
+
+    def get_all_translations_fields(self):
+        """Return the names of all translations fields."""
+        return [meta.translations_name for meta in self.extensions]
+
 
     def __iter__(self):
         """

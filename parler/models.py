@@ -939,8 +939,8 @@ class JSONTranslatableModel(TranslatableModelDefault):
         # Get all translations from all inheritance levels
         # TODO move this operations to JSONParlerOptions ?
         for meta in cls._parler_meta:
-            update_recursive(instance._translations, json.loads(
-                getattr(instance, meta.translations_name, '{}')))
+            update_recursive(instance._translations,
+                             getattr(instance, meta.translations_name, '{}'))
         # instance._translations = \
         #     json.loads(instance.translations_data) \
         #         if instance.translations_data else {}
@@ -1493,6 +1493,13 @@ class JSONParlerOptions(ParlerOptions):
 
     def __len__(self):
         return len(self._extensions)
+
+    def __repr__(self):
+        root = self.root
+        return "<ParlerOptions: {} {}>".format(
+            self.__class__,
+            self.translations_name
+        )
 
     @property
     def root(self):

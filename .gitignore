@@ -15,3 +15,4 @@ build/
 dist/
 docs/_build/
 htmlcov/
+settings_local.py

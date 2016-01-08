@@ -1,6 +1,7 @@
 # Django settings for example project.
 import django
 from os.path import join, dirname, realpath
+from .settings_local import *
 
 SRC_DIR = dirname(dirname(realpath(__file__)))
 
@@ -19,10 +20,10 @@ ADMINS = (
 MANAGERS = ADMINS
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': SRC_DIR + '/example.db',
-    }
+    # 'default': {
+    #     'ENGINE': 'django.db.backends.sqlite3',
+    #     'NAME': SRC_DIR + '/example.db',
+    # }
 }
 
 TIME_ZONE = 'Europe/Amsterdam'

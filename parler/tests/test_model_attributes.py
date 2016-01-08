@@ -210,12 +210,14 @@ class ModelAttributeTests(AppTestCase):
         with translation.override(self.other_lang2):
             x = SimpleModel.objects.get(pk=x.pk)
             # No translation model so get_translated_model doesn't make sense
-            # self.assertRaises(TranslationDoesNotExist, lambda: x._get_translated_model(use_fallback=True))
+            if not JSON_BACKEND:
+                self.assertRaises(TranslationDoesNotExist, lambda: x._get_translated_model(use_fallback=True))
             self.assertIs(x.safe_translation_getter('tr_title', 'DEFAULT'), 'DEFAULT')  # No lanuage, gives default
             self.assertEqual(x.safe_translation_getter('tr_title', any_language=True), 'TITLE_XX')  # Even though there is no current language, there is a value.
 
-            # self.assertNumQueries(0, lambda: x._get_any_translated_model())   # Can fetch from cache next time.
-            # self.assertEqual(x._get_any_translated_model().language_code, self.other_lang1)
+            if not JSON_BACKEND:
+                self.assertNumQueries(0, lambda: x._get_any_translated_model())   # Can fetch from cache next time.
+                self.assertEqual(x._get_any_translated_model().language_code, self.other_lang1)
 
     def test_save_ignore_fallback_marker(self):
         """

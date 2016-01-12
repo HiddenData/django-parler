@@ -772,6 +772,7 @@ class TranslatableInlineModelAdminDefault(BaseTranslatableAdmin, InlineModelAdmi
 
 
 class JSONTranslatableInlineModelAdmin(BaseTranslatableAdmin, InlineModelAdmin):
+
     def get_available_languages(self, obj, formset):
         """
         Fetching the available inline languages as queryset.
@@ -785,9 +786,9 @@ class JSONTranslatableInlineModelAdmin(BaseTranslatableAdmin, InlineModelAdmin):
             }
             return self.model._parler_meta.get_available_languages()
         else:
-            return self.model._parler_meta.root_model.objects.none()
+            return self.model.objects.none()
 
-        
+
 if JSON_BACKEND:
     TranslatableInlineModelAdmin = JSONTranslatableInlineModelAdmin
 else:

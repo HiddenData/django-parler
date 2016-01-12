@@ -218,10 +218,13 @@ class JSONTranslatedFields(object):
         super(JSONTranslatedFields, self).__init__()
         self.fields = fields
 
+    def get_translated_fields(self):
+        return self.fields
+
     def contribute_to_class(self, cls, name, virtual_only=False):
-        translations_field = '{}_data'.format(name)
+        translations_name = '{}_data'.format(name)
         json_field = JSONField(null=True, default={})
-        json_field.contribute_to_class(cls, translations_field)
+        json_field.contribute_to_class(cls, translations_name)
 
         # add properties
         for field_name, field in self.fields.items():
@@ -234,7 +237,8 @@ class JSONTranslatedFields(object):
             # If a second translations model is added, register it in the same object level.
             base.add_meta(JSONParlerMeta(
                 model=cls,
-                translations_name=translations_field
+                translations_name=translations_name,
+                translations_field=self,
             ))
         else:
             # Place a new _parler_meta at the current inheritance level.
@@ -242,8 +246,9 @@ class JSONTranslatedFields(object):
             cls._parler_meta = JSONParlerOptions(
                 base,
                 model=cls,
-                translations_name=translations_field,
-                fields=self.fields.keys()
+                translations_name=translations_name,
+                translations_field=self,
+                fields=self.fields.keys(),
             )
 
 
@@ -1392,16 +1397,18 @@ class JSONParlerMeta(object):
     """
     Meta data about translated fields.
     """
-    def __init__(self, model, translations_name, fields):
+    def __init__(self, model, translations_name, translations_field, fields):
         self.shared_model = model
         self.fields = fields
         self.translations_name = translations_name
+        self.translations_field = translations_field
         self._extensions = []
 
 
 class JSONParlerOptions(ParlerOptions):
 
-    def __init__(self, base, model, translations_name, fields):
+    def __init__(self, base, model, translations_name, translations_field,
+                 fields):
 
         self.base = base
         self.inherited = False
@@ -1412,6 +1419,8 @@ class JSONParlerOptions(ParlerOptions):
             # self.root_model = None
             self.root_translations_name = translations_name
             self.translations_name = translations_name
+            self.root_translations_field = translations_field
+            self.translations_field = translations_field
 
             # Initial state for lookups
             self._root = None
@@ -1429,6 +1438,8 @@ class JSONParlerOptions(ParlerOptions):
             #self.root_model = root.root_model
             self.root_translations_name = root.root_translations_name
             self.translations_name = translations_name
+            self.root_translations_field = root.root_translations_field
+            self.translations_field = translations_field
 
             # This object will amend the caches of the previous object
             # The _extensions list gives access to all inheritance levels where ParlerOptions is defined.
@@ -1440,7 +1451,8 @@ class JSONParlerOptions(ParlerOptions):
                 else:
                     print 'DAFAQ'
 
-        self.add_meta(JSONParlerMeta(model, translations_name, fields))
+        self.add_meta(JSONParlerMeta(model, translations_name,
+                                     translations_field, fields))
 
     def get_all_models(self):
         return []
@@ -1466,10 +1478,25 @@ class JSONParlerOptions(ParlerOptions):
             if name in meta.fields:
                 return meta
 
-    def get_all_translations_fields(self):
+    def get_all_translations_names(self):
         """Return the names of all translations fields."""
         return [meta.translations_name for meta in self._extensions]
 
+    def get_all_translations_fields(self):
+        """Return all translations fields."""
+        return [meta.translations_field for meta in self._extensions]
+
+    def get_field_orig(self, name):
+        """Return original field instance.
+
+        For example in field=CharModel(max_length=100) it will be CharModel
+        instance.
+        """
+        for meta in self._extensions:
+            translated = meta.translations_field.get_translated_fields()
+            field = translated.get(field)
+            if field:
+                return field
 
     def __iter__(self):
         """

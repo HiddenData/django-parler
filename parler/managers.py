@@ -137,7 +137,7 @@ class JSONTranslatableQuerySet(TranslatableQuerySetDefault):
             This will query the translated model for the ``name`` field.
         """
         translations_fields = \
-            self.model._parler_meta.get_all_translations_fields()
+            self.model._parler_meta.get_all_translations_names()
 
         if not language_codes:
             language_codes = (get_language(),)

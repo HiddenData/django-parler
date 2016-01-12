@@ -145,7 +145,14 @@ class JSONTranslatableQuerySet(TranslatableQuerySetDefault):
         filters = {}
 
         if translated_fields:
-            return self
+            query = Q()
+            for t_filter in translations_fields.items():
+                translations_name = \
+                    self.model._parler_meta._get_extension_by_field(t_filter[0])
+                translations_field = getattr(self.model, translations_name)
+                filter = {'{}__contains'.format(translations_name): t_filter}
+                query &= Q(filter)
+            return self.filter(query)
         else:
             if len(language_codes) == 1:
                 lang_filter = ('__has', language_codes[0])
@@ -158,7 +165,6 @@ class JSONTranslatableQuerySet(TranslatableQuerySetDefault):
                 filters[name + lang_filter[0]] = lang_filter[1]
             query = reduce(lambda q, f: q | Q(f), filters, Q())
             return self.filter(query)
-
 
         # for field_name, val in six.iteritems(translated_fields):
         #     if field_name.startswith('master__'):

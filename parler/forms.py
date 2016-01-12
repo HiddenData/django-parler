@@ -231,12 +231,16 @@ def _get_mro_attribute(bases, name, default=None):
 
 
 
-def _get_model_form_field(model, name, formfield_callback=None, **kwargs):
+def _get_model_form_field(model, name, formfield_callback=None,
+                          json_field=False, **kwargs):
     """
     Utility to create the formfield from a model field.
     When a field is not editable, a ``None`` will be returned.
     """
-    field = model._meta.get_field(name)
+    if json_field:
+        field = model._parler_meta.get_field_orig(name)
+    else:
+        field = model._meta.get_field(name)
     if not field.editable:  # see fields_for_model() logic in Django.
         return None
 

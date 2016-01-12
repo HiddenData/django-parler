@@ -1494,7 +1494,7 @@ class JSONParlerOptions(ParlerOptions):
         """
         for meta in self._extensions:
             translated = meta.translations_field.get_translated_fields()
-            field = translated.get(field)
+            field = translated.get(name)
             if field:
                 return field
 

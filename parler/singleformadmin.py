@@ -15,6 +15,9 @@ from django.forms.models import ModelFormMetaclass, modelform_factory
 from django.utils.translation import get_language, ugettext as _
 
 
+JSON_BACKEND = settings.PARLER_BACKEND == 'json'
+
+
 def _replace_field(fields, name, replacement):
     new_fields = []
     new_fields.extend(fields[:fields.index(name)])
@@ -112,6 +115,83 @@ def _handle_translation_model(bases, attrs, translations_model, form_new_meta,
                 attrs[t_name] = formfield
 
 
+def _handle_json_translations(bases,
+                              attrs,
+                              form_model,
+                              translations_field,
+                              form_new_meta,
+                              form_meta,
+                              form_base_fields,
+                              translated_fields):
+    """
+    Add translation fields for each language to form
+    """
+
+    fields = getattr(form_new_meta, 'fields', form_meta.fields)
+    exclude = \
+        getattr(form_new_meta, 'exclude', form_meta.exclude) or ()
+    widgets = \
+        getattr(form_new_meta, 'widgets', form_meta.widgets) or ()
+    formfield_callback = attrs.get('formfield_callback', None)
+
+    if fields == '__all__':
+        fields = None
+
+    for f_name in translations_field.get_translated_fields().items():
+        # Add translated field if not already added, and respect
+        # exclude options.
+        if f_name in translated_fields:
+            attrs[f_name] = _get_model_form_field(
+                form_model, f_name,
+                formfield_callback=formfield_callback,
+                json_field=True,
+                **translated_fields[f_name].kwargs)
+
+        # The next code holds the same logic as fields_for_model()
+        # The f.editable check happens in _get_model_form_field()
+        elif f_name not in form_base_fields \
+                and (fields is None or f_name in fields) \
+                and f_name not in exclude \
+                and not f_name in attrs:
+
+            # Get declared widget kwargs
+            if f_name in widgets:
+                # Not combined with declared fields (e.g. the
+                # TranslatedField placeholder)
+                kwargs = {'widget': widgets[f_name]}
+            else:
+                kwargs = {}
+
+            # See if this formfield was previously defined using a
+            # TranslatedField placeholder.
+            placeholder = _get_mro_attribute(bases, f_name)
+            if placeholder and isinstance(placeholder,
+                                          TranslatedField):
+                kwargs.update(placeholder.kwargs)
+
+            if not form_model._parler_meta.get_field_orig(f_name).editable:
+                continue
+
+            translated_fields_names = _get_translated_fields_names(f_name)
+            # replace original field name with translated fields names
+            if fields is not None:
+                replacement = zip(*translated_fields_names)[1]
+                form_new_meta.fields = _replace_field(
+                    fields or [f_name], f_name, replacement)
+
+            # store translated fields in form
+            for code, t_name in translated_fields_names:
+                formfield = _get_model_form_field(
+                    form_model, f_name,
+                    formfield_callback=formfield_callback,
+                    json_field=True, **kwargs)
+                formfield.required = (code == _get_default_language()) and \
+                                     formfield.required
+                formfield.label += ' ({})'.format(code)
+                formfield.language_code = code
+                attrs[t_name] = formfield
+
+
 class TranslatableModelFormMetaclass(ModelFormMetaclass):
     def __new__(mcs, name, bases, attrs):
         create_cls = lambda: \
@@ -119,6 +199,7 @@ class TranslatableModelFormMetaclass(ModelFormMetaclass):
                 mcs, name, bases, attrs)
 
         # Before constructing class, fetch attributes from bases list.
+        import ipdb; ipdb.set_trace()
         form_meta = _get_mro_attribute(bases, '_meta')
 
         # set by previous class level.
@@ -148,6 +229,48 @@ class TranslatableModelFormMetaclass(ModelFormMetaclass):
             _handle_translation_model(
                 bases, attrs, translations_model, form_new_meta, form_meta,
                 form_base_fields, translated_fields)
+
+        # Call the super class with updated `attrs` dict.
+        return create_cls()
+
+
+class JSONTranslatableModelFormMetaclass(ModelFormMetaclass):
+    def __new__(mcs, name, bases, attrs):
+        create_cls = lambda: \
+            super(JSONTranslatableModelFormMetaclass, mcs).__new__(
+                mcs, name, bases, attrs)
+
+        # Before constructing class, fetch attributes from bases list.
+        import ipdb; ipdb.set_trace()
+        form_meta = _get_mro_attribute(bases, '_meta')
+
+        # set by previous class level.
+        form_base_fields = _get_mro_attribute(bases, 'base_fields', {})
+
+        if not form_meta:
+            return create_cls()
+
+        # Not declaring the base class itself, this is a subclass.
+
+        # Read the model from the 'Meta' attribute. This even works in the admin,
+        # as `modelform_factory()` includes a 'Meta' attribute.
+        # The other options can be read from the base classes.
+        form_new_meta = attrs.get('Meta', form_meta)
+        form_model = form_new_meta.model if form_new_meta else form_meta.model
+
+        # Detect all placeholders at this class level.
+        translated_fields = [
+            f_name for f_name, attr_value in attrs.items()
+            if isinstance(attr_value, TranslatedField)
+            ]
+
+        if not form_model:
+            return create_cls()
+
+        for translations_field in form_model._parler_meta.get_all_translations_fields():
+            _handle_json_translations(
+                bases, attrs, form_model, translations_field, form_new_meta,
+                form_meta, form_base_fields, translated_fields)
 
         # Call the super class with updated `attrs` dict.
         return create_cls()
@@ -211,7 +334,7 @@ class TranslatableModelFormMixin(ModelForm):
         self.instance.set_current_language(get_language())
 
 
-class TranslatableModelForm(
+class TranslatableModelFormDefault(
         compat.with_metaclass(TranslatableModelFormMetaclass,
                               TranslatableModelFormMixin,
                               ModelForm)):
@@ -221,8 +344,19 @@ class TranslatableModelForm(
     pass
 
 
-class TranslatableAdmin(ModelAdmin):
-    form = TranslatableModelForm
+
+class JSONTranslatableModelForm(
+    compat.with_metaclass(JSONTranslatableModelFormMetaclass,
+                          TranslatableModelFormMixin,
+                          ModelForm)):
+    """
+    The model form to use for translated models.
+    """
+    pass
+
+
+class TranslatableAdminDefault(ModelAdmin):
+    form = TranslatableModelFormDefault
 
     @classmethod
     def translated_for_model(cls, model):
@@ -236,7 +370,7 @@ class TranslatableAdmin(ModelAdmin):
                 fields = _replace_field(fields, f_name, names)
 
         form = cls.form
-        if form is TranslatableModelForm:
+        if form is TranslatableModelFormDefault:
             # TranslatableAdmin validation will not pass without form created
             # for specific model
             form = modelform_factory(model, form, fields='__all__')
@@ -290,3 +424,15 @@ class TranslatableAdmin(ModelAdmin):
 
     language_column.allow_tags = True
     language_column.short_description = _("Languages")
+
+
+class JSONTranslatableAdmin(TranslatableAdminDefault):
+    pass
+
+
+if JSON_BACKEND:
+    TranslatableModelForm = JSONTranslatableModelForm
+    TranslatableAdmin = JSONTranslatableAdmin
+else:
+    TranslatableModelForm = TranslatableModelFormDefault
+    TranslatableAdmin = TranslatableAdminDefault

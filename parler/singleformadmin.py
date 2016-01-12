@@ -11,6 +11,7 @@ from parler.utils import compat
 from django.conf import settings
 from django.contrib.admin.options import ModelAdmin
 from django.forms import ModelForm
+from django.forms.forms import pretty_name
 from django.forms.models import ModelFormMetaclass, modelform_factory
 from django.utils.translation import get_language, ugettext as _
 
@@ -137,7 +138,7 @@ def _handle_json_translations(bases,
     if fields == '__all__':
         fields = None
 
-    for f_name in translations_field.get_translated_fields().items():
+    for f_name in translations_field.get_translated_fields():
         # Add translated field if not already added, and respect
         # exclude options.
         if f_name in translated_fields:
@@ -187,6 +188,8 @@ def _handle_json_translations(bases,
                     json_field=True, **kwargs)
                 formfield.required = (code == _get_default_language()) and \
                                      formfield.required
+                if formfield.label is None:
+                    formfield.label = pretty_name(f_name)
                 formfield.label += ' ({})'.format(code)
                 formfield.language_code = code
                 attrs[t_name] = formfield
@@ -199,7 +202,6 @@ class TranslatableModelFormMetaclass(ModelFormMetaclass):
                 mcs, name, bases, attrs)
 
         # Before constructing class, fetch attributes from bases list.
-        import ipdb; ipdb.set_trace()
         form_meta = _get_mro_attribute(bases, '_meta')
 
         # set by previous class level.
@@ -241,7 +243,6 @@ class JSONTranslatableModelFormMetaclass(ModelFormMetaclass):
                 mcs, name, bases, attrs)
 
         # Before constructing class, fetch attributes from bases list.
-        import ipdb; ipdb.set_trace()
         form_meta = _get_mro_attribute(bases, '_meta')
 
         # set by previous class level.
@@ -427,7 +428,48 @@ class TranslatableAdminDefault(ModelAdmin):
 
 
 class JSONTranslatableAdmin(TranslatableAdminDefault):
-    pass
+
+    form = JSONTranslatableModelForm
+
+    @classmethod
+    def translated_for_model(cls, model):
+        fields = cls.fields
+        for translations_field in \
+                model._parler_meta.get_all_translations_fields():
+            for f_name in translations_field.get_translated_fields():
+                if f_name not in fields:
+                    continue
+
+                names = [f[1] for f in _get_translated_fields_names(f_name)]
+                fields = _replace_field(fields, f_name, names)
+
+        form = cls.form
+        if form is JSONTranslatableModelForm:
+            # TranslatableAdmin validation will not pass without form created
+            # for specific model
+            form = modelform_factory(model, form, fields='__all__')
+
+        attrs = {
+            'fields': fields,
+            'form': form,
+        }
+
+        # Generate properties for translated list display fields if they are
+        # not defined as they are required
+        for field in cls.list_display:
+            if field in model._parler_meta.get_all_fields() and \
+                    not hasattr(cls, field):
+                attrs[field] = \
+                    functools.partial(
+                        lambda obj, field: getattr(obj, field),
+                        field=field)
+
+                attrs[field].admin_order_field = \
+                    'translations__{}'.format(field)
+                attrs[field].short_description = _(field)
+
+        return type(cls.__name__ + model.__name__ + 'Trans',
+                    (cls, ), attrs)
 
 
 if JSON_BACKEND:

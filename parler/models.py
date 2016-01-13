@@ -924,6 +924,21 @@ class JSONTranslatableModel(TranslatableModelDefault):
         else:
             return default
 
+    def get_translations_data(self, language_code=None):
+        """Return a translations field, only for these level of inheritance.
+
+        If language_code is provided return only translations data
+        in this lang.
+        """
+        translations = getattr(self, self._parler_meta.translations_name)
+        if language_code:
+            lang_translations = translations.get(language_code)
+            if lang_translations:
+                return lang_translations
+            else:
+                raise TranslationDoesNotExist
+        return translations
+
     def save(self, *args, **kwargs):
         for meta in self._parler_meta:
             if hasattr(meta, 'translations_name'):

@@ -952,6 +952,10 @@ class JSONTranslatableModel(TranslatableModelDefault):
 
         return instance
 
+    @classmethod
+    def get_translated_fields(cls):
+        cls._parler_meta.get_all_fields()
+
 
 class TranslatedFieldsModelBase(ModelBase):
     """
@@ -1399,10 +1403,18 @@ class JSONParlerMeta(object):
     """
     def __init__(self, model, translations_name, translations_field, fields):
         self.shared_model = model
+        self.model = model
         self.fields = fields
         self.translations_name = translations_name
         self.translations_field = translations_field
         self._extensions = []
+
+    def get_translated_fields(self):
+        """
+        Return the translated fields of this model.
+        """
+        # TODO only for this meta? or for all extensions
+        return self.fields
 
 
 class JSONParlerOptions(ParlerOptions):

@@ -335,6 +335,63 @@ class TranslatableModelFormMixin(ModelForm):
         self.instance.set_current_language(get_language())
 
 
+class JSONTranslatableModelFormMixin(ModelForm):
+    """
+    Handles multipile translations for fields in single form
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(JSONTranslatableModelFormMixin, self).__init__(*args, **kwargs)
+
+        # Load the initial values for the translated fields
+        instance = kwargs.get('instance', None)
+
+        self.translated = {}
+
+        # for each translation meta
+        for meta in self._meta.model._parler_meta:
+            # for each translated field
+            for field in meta.get_translated_fields():
+                self.translated[field] = []
+                # for each language for that field
+                for code, code_field in _get_translated_fields_names(field):
+                    self.translated[field].append(self[code_field])
+                    if instance:
+                        try:
+                            translation = instance.get_translations_data(
+                                language_code=code)
+                        except TranslationDoesNotExist:
+                            continue
+
+                        self.initial.setdefault( code_field, translation[field])
+
+    def _post_clean(self):
+        self.save_translated_fields()
+
+        # Perform the regular clean checks, this also updates self.instance
+        super(JSONTranslatableModelFormMixin, self)._post_clean()
+
+    def _get_all_translated_fields_names(self):
+        for meta in self.instance._parler_meta:
+            for field in meta.get_translated_fields():
+                yield field
+
+    def save_translated_fields(self):
+        for code in _get_available_language_codes():
+            self.instance.set_current_language(code)
+            for field in self._get_all_translated_fields_names():
+                code_field = dict(_get_translated_fields_names(field))[code]
+                try:
+                    value = self.cleaned_data[code_field]
+                except KeyError:
+                    continue
+
+                setattr(self.instance, field, value)
+
+        # Switch instance back to original language
+        self.instance.set_current_language(get_language())
+
+
 class TranslatableModelFormDefault(
         compat.with_metaclass(TranslatableModelFormMetaclass,
                               TranslatableModelFormMixin,
@@ -348,7 +405,7 @@ class TranslatableModelFormDefault(
 
 class JSONTranslatableModelForm(
     compat.with_metaclass(JSONTranslatableModelFormMetaclass,
-                          TranslatableModelFormMixin,
+                          JSONTranslatableModelFormMixin,
                           ModelForm)):
     """
     The model form to use for translated models.

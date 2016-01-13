@@ -143,7 +143,8 @@ class JSONTranslatableQuerySet(TranslatableQuerySetDefault):
             language_codes = (get_language(),)
 
         filters = {}
-
+        # TODO support both language_codes and translated_fields
+        # Idea: first filter langs then fields
         if translated_fields:
             query = Q()
             for t_filter in translations_fields.items():
@@ -163,7 +164,11 @@ class JSONTranslatableQuerySet(TranslatableQuerySetDefault):
             # Final prefixing
             for name in translations_fields:
                 filters[name + lang_filter[0]] = lang_filter[1]
-            query = reduce(lambda q, f: q | Q(f), filters, Q())
+            else:
+                filters[name + lang_filter[0]] = lang_filter[1]
+            query = Q()
+            for filter_item in ({k: v} for k, v in filters.items()):
+                query |= Q(**filter_item)
             return self.filter(query)
 
         # for field_name, val in six.iteritems(translated_fields):

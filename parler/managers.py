@@ -143,46 +143,42 @@ class JSONTranslatableQuerySet(TranslatableQuerySetDefault):
             language_codes = (get_language(),)
 
         filters = {}
-        # TODO support both language_codes and translated_fields
-        # Idea: first filter langs then fields
-        if translated_fields:
-            query = Q()
-            for t_filter in translations_fields.items():
-                translations_name = \
-                    self.model._parler_meta._get_extension_by_field(t_filter[0])
-                translations_field = getattr(self.model, translations_name)
-                filter = {'{}__contains'.format(translations_name): t_filter}
-                query &= Q(filter)
-            return self.filter(query)
+        if len(language_codes) == 1:
+            lang_filter = ('__has', language_codes[0])
         else:
+            # TODO or has_all?
+            lang_filter = ('__has_any', list(language_codes))
+        for name in translations_fields:
+            filters[name + lang_filter[0]] = lang_filter[1]
+        else:
+            filters[name + lang_filter[0]] = lang_filter[1]
+        query = Q()
+        for filter_item in ({k: v} for k, v in filters.items()):
+            query |= Q(**filter_item)
+        self = self.filter(query)
+
+        if translated_fields:
+            filters = {}
+            # TODO that supports only one translation field
+            # Requires extending
+            translations_name = self.model._parler_meta.translations_name
             if len(language_codes) == 1:
-                lang_filter = ('__has', language_codes[0])
+                for field, val in translated_fields.items():
+                    filters['{}__path_{}_{}'.format(translations_name,
+                                                    language_codes[0],
+                                                    field)] = val
+                return self.filter(**filters)
             else:
-                # TODO or has_all
-                lang_filter = ('__has_any', language_codes)
-
-            # Final prefixing
-            for name in translations_fields:
-                filters[name + lang_filter[0]] = lang_filter[1]
-            else:
-                filters[name + lang_filter[0]] = lang_filter[1]
-            query = Q()
-            for filter_item in ({k: v} for k, v in filters.items()):
-                query |= Q(**filter_item)
-            return self.filter(query)
-
-        # for field_name, val in six.iteritems(translated_fields):
-        #     if field_name.startswith('master__'):
-        #         filters[field_name[8:]] = val  # avoid translations__master__ back and forth
-        #     else:
-        #         filters["{0}__{1}".format(relname, field_name)] = val
-        #
-        # if len(language_codes) == 1:
-        #     filters[relname + '__language_code'] = language_codes[0]
-        #     return self.filter(**filters)
-        # else:
-        #     filters[relname + '__language_code__in'] = language_codes
-        #     return self.filter(**filters).distinct()
+                query = Q()
+                for lang in language_codes:
+                    lang_query = Q()
+                    for field, val in translated_fields.items():
+                        filter_item = {'{}__path_{}_{}'.format(
+                            translations_name, lang, field): val}
+                        lang_query &= Q(**filter_item)
+                    query |= lang_query
+                return self.filter(query)
+        return self
 
 
 if appsettings.PARLER_BACKEND == 'json':

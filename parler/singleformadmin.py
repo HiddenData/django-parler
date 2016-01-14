@@ -488,6 +488,23 @@ class JSONTranslatableAdmin(TranslatableAdminDefault):
 
     form = JSONTranslatableModelForm
 
+    def get_queryset(self, request):
+        # TODO supports only one field
+        # TODO does not support - ("minus") ordering
+        queryset = super(TranslatableAdminDefault, self).get_queryset(request)
+        tordering = getattr(self, 'translated_ordering', None)
+        if tordering:
+            field_name = tordering[0]
+            lang = get_language()
+            translations_name = \
+                self.model._parler_meta._get_extension_by_field(field_name)\
+                    .translations_name
+            queryset = queryset.select_json(ordering_field='{}__{}__{}'.format(
+                translations_name, lang, field_name)).order_by('ordering_field')
+        return queryset
+
+
+
     @classmethod
     def translated_for_model(cls, model):
         fields = cls.fields

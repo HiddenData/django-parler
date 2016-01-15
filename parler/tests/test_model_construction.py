@@ -5,7 +5,7 @@ from .utils import AppTestCase
 from .testapp.models import ManualModel, ManualModelTranslations, SimpleModel, Level1, Level2, ProxyBase, ProxyModel, DoubleModel, RegularModel, CharModel
 
 
-JSON_BACKEND = settings.PARLER_BACKEND = 'json'
+JSON_BACKEND = settings.PARLER_BACKEND == 'json'
 
 
 class ModelConstructionTests(AppTestCase):

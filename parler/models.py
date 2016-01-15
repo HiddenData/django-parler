@@ -867,7 +867,6 @@ class JSONTranslatableModel(TranslatableModelDefault):
         if language_code is None:
             language_code = self._current_language
 
-        # TODO caching? if needed here
         return language_code in self._translations
 
     def get_available_languages(self, related_name=None, include_unsaved=False):
@@ -961,9 +960,6 @@ class JSONTranslatableModel(TranslatableModelDefault):
         for meta in cls._parler_meta:
             update_recursive(instance._translations,
                              getattr(instance, meta.translations_name, '{}'))
-        # instance._translations = \
-        #     json.loads(instance.translations_data) \
-        #         if instance.translations_data else {}
 
         return instance
 

@@ -107,7 +107,7 @@ class ModelAttributeTests(AppTestCase):
         x.set_current_language('nl')
         x.tr_title = "TITLE_NL2"
 
-        # TODO save translations is not needed in json backend
+        # save translations is not needed in json backend
         if JSON_BACKEND:
             self.assertNumQueries(1, x.save())
         else:

@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+"""Run tests with json backend enabled."""
 import sys
 import django
 from django.conf import settings, global_settings as default_settings

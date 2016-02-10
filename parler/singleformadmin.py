@@ -364,6 +364,11 @@ class JSONTranslatableModelFormMixin(ModelForm):
                             continue
 
                         self.initial.setdefault( code_field, translation[field])
+        # Remove all translations fields (e.g. translations_data) from
+        # form fields
+        for translations_name in \
+                self._meta.model._parler_meta.get_all_translations_names():
+            self.fields.pop(translations_name, None)
 
     def _post_clean(self):
         self.save_translated_fields()

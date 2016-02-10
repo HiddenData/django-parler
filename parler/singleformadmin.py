@@ -508,8 +508,6 @@ class JSONTranslatableAdmin(TranslatableAdminDefault):
                 translations_name, lang, field_name)).order_by('ordering_field')
         return queryset
 
-
-
     @classmethod
     def translated_for_model(cls, model):
         fields = cls.fields
@@ -542,7 +540,6 @@ class JSONTranslatableAdmin(TranslatableAdminDefault):
                     functools.partial(
                         lambda obj, field: getattr(obj, field),
                         field=field)
-
                 attrs[field].admin_order_field = \
                     'translations__{}'.format(field)
                 attrs[field].short_description = _(field)

@@ -194,15 +194,11 @@ class JSONFieldProperty(object):
             # not an instance
             return self
         try:
-            return instance._translations[lang][self.name]
+            translation = instance._translations[lang][self.name]
+            return translation if translation else self._get_fallback(instance)
         except KeyError:
             # Fallback
-            for lang in instance.get_fallback_languages():
-                try:
-                    return instance._translations[lang][self.name]
-                except KeyError:
-                    continue
-            raise TranslationDoesNotExist
+            return self._get_fallback(instance)
 
     def __set__(self, instance, value):
         lang = instance._current_language
@@ -210,6 +206,14 @@ class JSONFieldProperty(object):
             instance._translations[lang][self.name] = value
         else:
             instance._translations[lang] = {self.name: value}
+
+    def _get_fallback(self, instance):
+        for lang in instance.get_fallback_languages():
+            try:
+                return instance._translations[lang][self.name]
+            except KeyError:
+                continue
+        raise TranslationDoesNotExist
 
 
 class JSONTranslatedFields(object):
